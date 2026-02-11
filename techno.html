@@ -1,0 +1,1071 @@
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<!-- saved from url=(0041)https://www.budingparis.com/tests/VT.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<script type="text/javascript">
+// levels constents
+var INIT_LEVEL = 50;
+var MAX_LEVEL = 100;
+
+// list size definition
+var MAX_CRT_SIZE = 10;
+var ERROR_SIZE = 3;
+
+// repeat time définitions
+var MAX_CORRECT_TM = 20;
+var MAX_REPEAT_ERROR = 3;
+var NEED_CORRECT_TM = 4;
+var NEED_RECORRECT_TM = 3;
+var ERROR_WAIT_LENGTH = 4;
+
+var STATUT_WATTING = 1;
+var STATUT_CRT = 2;
+var STATUT_ERROR = 3;
+var STATUT_FINISHED = 4;
+
+var SHOW_LIST = true;
+
+// list functions
+// return if arr contient findValue
+function contains(arr, findValue){
+	for(var i=0; i<arr.length; i++){
+		if(arr[i]==findValue){
+			return true;
+		}
+	}
+	return false;
+}
+function removeValue(list, value){
+	for(i in list){
+		if(list[i] == value){
+			list.splice(i, 1);
+		}
+	}	
+}
+
+
+// random 0 to n-1, ratio i / i+1 = d 
+function randomRatio(n, d){// alert(currentList.length + ", " + n + "," + d)
+	if(d==1){
+		return random(n);
+	}
+	var N = (Math.pow(d, n)-1);
+	var r = N + 1 - Math.random() * N;
+	return n - Math.ceil(Math.log(r) / Math.log(d));
+}
+
+// random 0 to n-1
+function random(n){
+	return Math.floor(Math.random()*n);
+}
+
+// lists
+var waitingList;
+var finishedList;
+var currentList;
+var errorList;
+function initEmptyLists(){
+	waitingList = new Array();
+	finishedList = new Array();
+	currentList = new Array();
+	errorList = [emptyWordId(), emptyWordId(), emptyWordId()];
+
+}
+
+function emptyWordId(){
+	return -(random(1000)+1000);
+}
+
+function isEmptyWordId(i){
+	return i<0;
+}
+
+function isValidWordId(i){
+	return i>=0 && i< words.length;
+}
+
+function initLists(){
+	initEmptyLists();
+
+	for(var i=0; i<words.length; i++){
+		toWaitting(i);
+	}
+
+	for(var i=0; i<MAX_CRT_SIZE; i++){
+		if(waitingList.length==0){
+			break;
+		}
+		r = random(waitingList.length);
+		toCurrent(waitingList.splice(r, 1)[0]);
+	}
+}
+
+// functions that set value i into a list
+function changeToList(i, list, statut, pos){	
+	// remove if already exist
+	removeValue(waitingList, i);
+	removeValue(currentList, i);
+	removeValue(errorList, i);
+	removeValue(finishedList, i);
+
+	if(pos==null || list.length<pos){
+		list.push(i);
+	}else{
+		list.splice(pos, 0, i);
+	}
+	if(isValidWordId(i) && (statut==STATUT_WATTING || words[i].statut != STATUT_FINISHED)){
+		words[i].statut = statut;
+	}
+}
+
+function toWaitting(i){
+	if(!isEmptyWordId(i) && words[i].statut != STATUT_WATTING){
+		words[i].totalCorrectCt = 0;
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, waitingList, STATUT_WATTING);
+}
+
+function toCurrent(i, pos){
+	if(isValidWordId(i) && words[i].statut != STATUT_CRT){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, currentList, STATUT_CRT, pos);
+}
+
+function toError(i){
+	if(isValidWordId(i) && words[i].statut != STATUT_ERROR){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, errorList, STATUT_ERROR);
+	if( errorList.length > ERROR_SIZE){
+		for(i=errorList.length; i>=0; i--){
+			if(isEmptyWordId(errorList[i])){
+				errorList.splice(i, 1);
+				break;
+			}
+		}
+	}
+}
+
+function toFinished(i){
+	changeToList(i, finishedList, STATUT_FINISHED);
+}
+
+// affichage functions
+function affLists(){
+	showList(waitingList, "waiting_div");
+	showList(finishedList, "finished_div");
+	showList(currentList, "current_div");
+	showList(errorList, "error_div");
+	document.getElementById("aff").style.display = SHOW_LIST ? "block" : "none";
+}
+
+function showList(list, divId){
+	var div = document.getElementById(divId);
+	div.innerHTML = "";
+	for(var i=0; i<list.length; i++){
+		div.innerHTML += getWordAff(list[i]);
+	}
+}
+
+function getWordAff(i){
+	if(isValidWordId(i)){
+		var word = words[i];
+		colorCode = getColorCode(word.level)
+		var selectedword = (i==SELECTED_WORD_ID)?" crtword" : "";
+		var finishedword = (word.statut==STATUT_FINISHED)?" finishedword" : "";
+		return '<div class="affword'+ selectedword + finishedword + '" style="background-color:'+colorCode+'">'
+				+ getIndiceBlock("error", MAX_REPEAT_ERROR, word.repeatErrCt)
+				+ (
+					word.statut==STATUT_ERROR 
+					? getIndiceBlock("recorect", NEED_RECORRECT_TM, word.correctCt) 
+					: getIndiceBlock("correct", NEED_CORRECT_TM, word.correctCt) 
+				)
+				+ getIndiceBlock("total", MAX_CORRECT_TM, word.totalCorrectCt)
+				+ word.word +'</div>\n';
+	}else{
+		return '<div class="affword_null" style="background-color:white">&nbsp;</div>\n';
+	}
+}
+
+function getIndiceBlock(name, total, value){
+	var spanHtml = '\n<span class="indice_b b_' + name + '">';	
+	var name_point = name;
+	if( (name=="total" && total > 20) || (name!="total" && total > 5)){
+		name_point += "_small";
+	}
+
+	for(var i=0; i<total; i++){
+		if(i<value){
+        	spanHtml += '\n  <span class="indice_v '+name_point+'"></span>'
+		}else{
+			spanHtml += '\n  <span class="indice_t '+name_point+'"></span>'
+		}
+	}
+    spanHtml += '\n</span>\n';
+	return spanHtml;
+        		
+}
+
+function getColorCode(level){
+	var level = (level-1)
+	if(level<1){
+		level=1;
+	}
+	level = Math.floor(100/level)+155;
+
+	var a=level.toString(16);
+	return "#"+a+a+a;
+}
+
+var words=[];
+
+
+function hideButtons(divId){
+	document.getElementById(divId).style.display="none";
+}
+
+function showButtons(divId){
+	document.getElementById(divId).style.display= (divId=="btndiv_3" || divId=="btndiv_4") ? "inline-block" : "inline-block";
+}
+
+function showStartButtonsByCondition(){
+	if(words==null || words.length <=0 ){
+		hideButtons("btndiv_3");
+	}else{
+		showButtons("btndiv_3");
+	}
+
+}
+
+function getSeparator(){
+	var radios = document.getElementsByName("separator");
+	for(var i=0; i<radios.length; i++){
+		if(radios[i].checked){
+			return radios[i].value;
+		}
+	}
+	return ",";
+}
+
+function load(){
+	var inputs = document.getElementById("input_words").value;
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	words = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split(getSeparator());
+		if(params.length==2){
+			words[i]={'word':params[0],'mean':params[1],'level':INIT_LEVEL};
+		}else if(params.length==3 && params[2]!=''){
+			words[i]={'word':params[0],'mean':params[1],'level':params[2]};
+		}
+	}
+	
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function save(){
+	var saveValues = "";
+	for(var i=0; i<words.length; i++){
+		saveValues += words[i].word+getSeparator()+words[i].mean+getSeparator()+words[i].level+"\n";
+	}
+	
+	document.getElementById("input_words").value = saveValues;
+}
+
+
+
+function getQuestionField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "mean" : "word";
+}
+
+function getAnswerField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "word" : "mean";
+}
+
+function getNext(list, ratio){
+	var i = randomRatio(list.length-1, ratio);
+	// return list.splice(i, 1)[0]; // ch
+	return list[i]; 
+}
+
+var startTime;
+function start(){
+	initLists();
+	startTime = Date.now();
+	nextWord();
+}
+
+function finish(){
+	var t = Math.floor((Date.now()-startTime)/1000)
+	alert("完成 !\n用时" + Math.floor(t/60) +"m"+ (t%60) +"s");
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showButtons("btndiv_3");
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	initLists();
+	affLists();
+	save();
+}
+
+var SELECTED_WORD_ID;
+crtWordBeginTime=0;
+function nextWord(){
+	var i = getNext(errorList, 3);
+	if(isValidWordId(i)){
+		SELECTED_WORD_ID = i;
+	}else{
+		toError(i);
+		SELECTED_WORD_ID = getNext(currentList, 2);
+	}
+
+	crtWordBeginTime=new Date().getTime();
+	showQuestion();
+
+	showButtons("btndiv_1");
+	showButtons("btndiv_2");
+	hideButtons("btndiv_3");
+	showButtons("btndiv_4");
+	// hideButtons("btndiv_5");
+
+
+	affLists();
+}
+
+function showQuestion(){
+	var field = getQuestionField();
+	var question = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(question);
+	}
+
+	document.getElementById("question").innerHTML = field=="word"? ('<span class="bigger">' + question + '</span>') : question;
+	document.getElementById("answer").innerHTML="";	
+	var crtDetail = getCrtDetail();
+	if(crtDetail != null){
+		document.getElementById("detail").innerHTML = crtDetail;
+		showButtons("btndiv_5");
+	}else{
+		hideButtons("btndiv_5");
+	}
+	hideDetail();
+}
+
+function getCrtDetail(){
+	var crtWd = words[SELECTED_WORD_ID];
+	if(crtWd.example != null){
+		return '<span class="small">' + crtWd.example + "<br>" + crtWd.exampleTrans + (crtWd.src == "不适用单词" ? "" : ("<br>" + crtWd.src)) + '</span>';
+	}else{
+		return null;
+	}
+}
+
+function hideDetail(){
+	document.getElementById("detail").style.display="none";
+}
+
+function showDetail(){
+	document.getElementById("detail").style.display="block";
+}
+
+function swichDetail(){
+	if(document.getElementById("detail").style.display=="none"){
+		showDetail();
+	}else{
+		hideDetail();
+	}
+}
+
+
+function showAnswer(){
+	var field = getAnswerField();
+	var answer = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(answer);
+	}
+	document.getElementById("answer").innerHTML = field=="word"? ('<span class="bigger">' + answer + '</span>') : answer;	
+}
+
+function readCurrentWord(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.word);
+	}
+}
+
+function readCurrentDetail(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.example);
+	}
+}
+
+function onRight(){
+	updateLevel(SELECTED_WORD_ID, true);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	crtWord.totalCorrectCt++;
+	crtWord.correctCt++;
+	crtWord.repeatErrCt = 0;
+
+	if(crtWord.totalCorrectCt >= MAX_CORRECT_TM || (crtStatut==STATUT_CRT && crtWord.correctCt>=NEED_CORRECT_TM)){
+		toFinished(SELECTED_WORD_ID);
+	}else if(crtStatut==STATUT_ERROR && crtWord.correctCt>=NEED_RECORRECT_TM){
+		toCurrent(SELECTED_WORD_ID)
+	}else{
+		if(crtStatut == STATUT_ERROR){
+			toError(SELECTED_WORD_ID);
+		}else{
+			toCurrent(SELECTED_WORD_ID);
+		}
+	}
+
+	if(errorList.length < ERROR_SIZE){
+		errorList.push(emptyWordId());
+	}
+
+	while(currentList.length + validWordIdCount(errorList) < MAX_CRT_SIZE && words.length >= MAX_CRT_SIZE){
+		if(waitingList.length>0){
+			var r = random(waitingList.length);
+			toCurrent(waitingList.splice(r, 1)[0]);
+		}else if(finishedList.length>0){
+			var r = random(finishedList.length);
+			toCurrent(finishedList.splice(r, 1)[0]);
+		}
+	}
+
+	if(isAllFinished()){
+		finish();
+	}else{
+		nextWord();
+	}
+
+}
+
+function onWrong(){
+	updateLevel(SELECTED_WORD_ID, false);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	
+	crtWord.repeatErrCt++;
+	if(crtStatut==STATUT_ERROR || crtWord.repeatErrCt>=MAX_REPEAT_ERROR){
+		toError(SELECTED_WORD_ID);
+	}else{
+		toCurrent(SELECTED_WORD_ID, ERROR_WAIT_LENGTH);
+	}
+
+
+
+	nextWord();
+}
+
+function validWordIdCount(list){
+	var cnt = 0;
+	for(i in list){
+		if(isValidWordId(list[i])){
+			cnt++;
+		}
+	}
+	return cnt;
+}
+
+function isAllFinished(){
+	var cnt = 0;
+	for(i in words){
+		if(words[i].statut == STATUT_FINISHED){
+			cnt++;
+		}
+	}
+	return cnt==words.length;
+}
+
+function updateLevel(idx, res){
+	if(!res){
+		words[idx].level=MAX_LEVEL;
+	}else{
+		var tm = new Date().getTime()-crtWordBeginTime
+		words[idx].level=Math.min(Math.floor((words[idx].level+tm/1000)/2), MAX_LEVEL);
+		
+	}
+}
+
+function initOptions(){
+	initOptionSelector("OPTION_MAX_CRT_SIZE", MAX_CRT_SIZE, 6, 20);
+	initOptionSelector("OPTION_ERROR_SIZE", ERROR_SIZE, 2, 6);
+	initOptionSelector("OPTION_MAX_CORRECT_TM", MAX_CORRECT_TM, 5, 40);
+	initOptionSelector("OPTION_NEED_CORRECT_TM", NEED_CORRECT_TM, 1, 10);
+	initOptionSelector("OPTION_MAX_REPEAT_ERROR", MAX_REPEAT_ERROR, 1, 5);
+	initOptionSelector("OPTION_NEED_RECORRECT_TM", NEED_RECORRECT_TM, 1, 10);
+}
+
+function initOptionSelector(elmId, param, minV, maxV){
+	var selector = document.getElementById(elmId);
+	for(var i=minV; i<=maxV; i++){
+		selector.add(new Option(i,i, false, i==param));
+	}
+}
+
+
+function changeOption(){
+	MAX_CRT_SIZE = document.getElementById("OPTION_MAX_CRT_SIZE").value;
+	ERROR_SIZE = document.getElementById("OPTION_ERROR_SIZE").value;
+	MAX_CORRECT_TM = document.getElementById("OPTION_MAX_CORRECT_TM").value;
+	NEED_CORRECT_TM = document.getElementById("OPTION_NEED_CORRECT_TM").value;
+	MAX_REPEAT_ERROR = document.getElementById("OPTION_MAX_REPEAT_ERROR").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	SHOW_LIST = document.getElementById("OPTION_SHOW_LIST").checked;
+	affLists();	
+}
+
+// keyboard
+function handleShortcut(event) { 
+    if (event.key === "ArrowLeft") { 
+        onRight();
+        event.preventDefault(); 
+        // Votre action à effectuer lorsque la touche est enfoncée 
+    }else if(event.key === "ArrowRight"){
+        onWrong();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowUp"){
+        readCurrentWord();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowDown"){
+        showAnswer();
+        event.preventDefault(); 
+    }else if(event.key === "l"){
+        swichDetail();
+        event.preventDefault(); 
+    }else if(event.key === "o"){
+        readCurrentDetail();
+        event.preventDefault(); 
+    }
+} 
+document.addEventListener("keydown", handleShortcut);
+
+
+
+// voice reader
+
+var reader_init_count = 0;
+var reader_voices;
+function waitInit(){
+	var success = false;
+	try {
+		if(window.speechSynthesis.getVoices().length>0){
+			reader_voices = window.speechSynthesis.getVoices();
+
+			initSelector("fr-FR");
+			// initSelector("zh-CN");
+			// initSelector("zh-TW");
+			success = true;
+		}
+	} catch (error) {console.error(error);}
+
+	if(success){
+		return;
+	}else if(!success && reader_init_count++<5){
+		setTimeout(waitInit,100);
+	}
+}
+
+
+function initSelector(lang){
+	var selector = document.getElementById("lang_"+lang);
+	for(i=0; i<reader_voices.length; i++){
+		if(reader_voices[i].lang==lang){
+			var option_i = new Option(reader_voices[i].name,i, false, reader_voices[i].name.includes("Google"));
+			selector.add(option_i);
+		}
+	}
+}
+
+
+function getVoice(v){
+	return reader_voices[v];
+}
+
+function speak(txt, voice){
+	try{
+		var speech = new SpeechSynthesisUtterance();
+		speech.voice = voice;
+		speech.text = txt;
+		window.speechSynthesis.speak(speech);
+	}catch (error) {}
+}
+
+function read(id, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(document.getElementById(id).value, getVoice(lang));
+}
+
+function readText(txt, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(txt, getVoice(lang));
+}
+
+
+function readWord(wd){
+	if(needRead() && reader_voices != null){
+		readText(wd, "fr-FR")
+	}
+
+}
+
+function needRead(){
+	return document.getElementById("read_option").checked;
+}
+
+function changeReadOption(){
+	document.getElementById("readCrtWdBt").disabled = !document.getElementById("read_option").checked;
+}
+
+
+var lessonsList = [];
+function loadTxt(inputs){
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	var lesson = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split("\t");
+		if(params.length==2){
+			lesson.push({'word':params[0],'mean':params[1],'level':INIT_LEVEL});
+		}else if(params.length==3 && params[2]!=''){
+			lesson.push({'word':params[0],'mean':params[1],'level':params[2]});
+		}else if(params.length==5){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4]})
+		}else if(params.length==6){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4],'src':params[5]})
+		}
+
+		if(lesson.length==42){
+			lessonsList.push(lesson);
+			lesson = new Array();
+		}
+	}
+	if(lesson.length != 0){
+		lessonsList.push(lesson);
+	}
+
+	var selector = document.getElementById("lessons");
+	for(var i=0; i<lessonsList.length; i++){
+		var option = document.createElement("option");
+		option.text = i+1;
+		selector.add(option);
+	}
+}
+
+function loadLesson(){
+	var selector = document.getElementById("lessons");
+	if(selector.value != null){
+		words = lessonsList[selector.value-1];
+		save();
+	}
+
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function nw(w, m){
+	return {'word':w,'mean':m,'level':INIT_LEVEL};
+}
+
+
+setTimeout(waitInit,100);
+
+</script>
+
+<style type="text/css">
+@media only screen and (max-width: 600px) {
+*{
+    font-family: sans-serif;
+	font-size: 30px;
+}
+
+.option_title {
+    width: 50% !important;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+#aff{
+	position: initial !important;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+
+#exe{
+	height: 900px !important;
+	position: relative;
+	width: 570px;
+}
+
+#question, #answer{
+	font-size: 40px !important;	
+	padding-top: 10px;
+	height: 200px !important;	
+}
+
+#question{
+	text-align: left;
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 7px !important;
+    padding: 5px;
+    margin: 50px 20px 0 20px !important;
+    width: 85%	 !important;
+}
+
+#detail, #detail *{
+    font-size: 15px !important;
+}
+
+.bigger{
+	font-size: 50px !important;	
+	font-weight: bold;
+}	
+
+
+#btndiv_1 button, #btndiv_2 button, #btndiv_5 button{
+	height: 100px !important;
+	width: 135px;
+	font-size: 35px !important;	
+	bottom: 10px;
+}
+
+#btndiv_1 , #btndiv_2, #btndiv_5{
+	position: absolute !important;
+	bottom: 10px;
+	width: 280px;
+}
+
+#btndiv_1 {
+	left:10px;
+	bottom:120px;
+
+}
+
+#btndiv_2 {
+	left:10px;
+}
+
+#btndiv_5 {
+	left:10px;
+	bottom:240px;
+}
+
+#input_words{
+	font-size: 25px !important;
+}
+
+}
+
+
+body{
+    font-family: sans-serif;
+}
+
+.buttons button{
+	padding:5px; 
+	margin:5px;
+	font-size: 8px;
+}
+#word{
+	font-size: 20px;
+}
+#input_words{
+	width:550px;
+	height:200px;
+	font-family: sans-serif;
+}
+#aff{
+	position: absolute;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+.list_aff{
+    min-width: 150px;
+    padding: 5px;
+    display: inline-block;	
+	vertical-align: top
+}
+
+.affword, .affword_null{
+	font-size: 12px;
+	border: 1px solid green;
+	margin: 2px 0px;
+	padding: 1px;
+    display:block;
+}
+
+.crtword{
+	border: 1px solid red !important;
+	font-weight:bold;
+}
+
+.finishedword{
+	color:#712a2a;
+	font-weight:bold;
+}
+
+
+.indice_b{
+	display: inline-block;
+    background-color: #bbbb88;
+    width: 6px;
+    float: inline-end;
+    padding: 0px 1px 1px 0px;
+    margin-left : 3px;
+}
+
+.indice_v, .indice_t{
+	display: inline-block;
+    margin: 1px 1px 0px 1px;
+    width: 5px;
+    height: 2px;
+    vertical-align: top;
+    float: inline-start;
+}
+
+.indice_t{
+	opacity:0.2;
+}
+
+.error, .error_small{
+	background-color:red;
+}
+
+.correct, .correct_small{
+	background-color:green;
+}
+
+.recorect, .recorect_small{
+	background-color:blue;
+}
+
+
+.error_small, .correct_small, .recorect_small{
+    height: 1px;
+    margin-top: 0.5px;
+}
+
+.b_total{
+	width:12px;
+}
+
+.total{
+    background-color: green;
+    width:2px;
+    margin: 1px 0px 0px 1px;
+}
+
+.total_small{
+    background-color: green;
+    width:1px;
+    margin: 0.2px 0px 0px 1px;
+}
+
+#question, #answer{
+	font-size: 25px;	
+	height: 60px;
+	padding-left:5px;
+	height: 60px;
+	padding-left:5px;
+}
+
+#question{
+	color: #bb4110;	
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 10px;
+    padding: 5px;
+    margin: 20px 0 0 20px;
+    width: 550px;
+}
+
+#answer{
+	color: #174917;	
+}
+
+
+.block{
+	margin: 20px 5px;
+	padding: 5px;
+	width: 600px;
+	border: 1px solid black;
+}
+
+.div_sep{
+	border-bottom: 1px solid black;
+	margin: 10px;
+}
+
+.option_title{
+	width: 150px;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+
+</style>
+<title>单词训练</title>
+</head>
+<body onkeypress="onKey(event)">
+
+<div>
+
+	<div class="block" id="exe">
+		<div id="detail"></div>
+		<div id="question"></div>
+		<div id="answer"></div>
+
+
+		<span id="btndiv_1" style="display: none;">
+			<button onclick="onRight();">正确←</button>
+			<button onclick="onWrong();">错误→</button>
+		</span>
+		&nbsp;&nbsp;
+		<span id="btndiv_2" style="display: none;">
+			<button onclick="showAnswer();">答案↓</button>
+			<button onclick="readCurrentWord();" id="readCrtWdBt">读音↑</button>
+		</span>
+		<span id="btndiv_5" style="display: none;">		
+			<button onclick="swichDetail();" id="detailCrtWdBt">详情L</button>
+			<button onclick="readCurrentDetail();" id="readDetailCrtWdBt">读例O</button>
+		</span>
+		
+	</div>
+	
+
+	<div class="block">
+		方向 : 
+		<input type="radio" name="direction" value="0" checked="">法 - 汉
+		&nbsp;&nbsp;
+		<input type="radio" name="direction" value="1" id="direction_inverse">汉 - 法
+		&nbsp;&nbsp;&nbsp;
+		<span id="btndiv_3" style="display: none;">
+			<button id="b_32" onclick="start();">开始</button>
+		</span>
+		<span id="btndiv_4" style="display: none;">
+			<button id="b_32" onclick="finish();">结束</button>
+		</span>
+	</div>
+
+	<div class="block">
+		<div id="lists"></div>
+		<textarea id="input_words"></textarea>
+		<br>
+		<button onclick="load();">导入单词</button>
+		<button onclick="save();">导出单词</button>
+		分隔符 : <input type="radio" name="separator" value=";" checked=""> <b>;</b>
+		&nbsp; &nbsp;
+		<input type="radio" name="separator" value=","> <b>,</b>
+	</div>
+	<div class="block">
+		<select id="lessons"></select> <button onclick="loadLesson();">导入课程</button>
+	</div>
+	
+	<div class="block">
+		<div>
+			<button onclick="waitInit()">初始化语音引擎</button>&nbsp; &nbsp;
+			法语引擎 : <select id="lang_fr-FR"><option value="0">Microsoft Hortense - French (France)</option><option value="1">Microsoft Julie - French (France)</option><option value="2">Microsoft Paul - French (France)</option><option value="9">Google français</option></select>
+		</div>
+
+		<div>
+			开启单词朗读功能<input type="checkbox" id="read_option" checked="" onchange="changeReadOption()">&nbsp; &nbsp;
+			测试文字<input type="text" id="word_fr" value="banana"><button onclick="read(&#39;word_fr&#39;, &#39;fr-FR&#39;)"> 试读 </button>
+		</div>
+	</div>
+	
+
+	<div class="block">
+		<div class="div_sep">选项 : </div>
+		<div><span class="option_title">当前列表长度 : </span><select id="OPTION_MAX_CRT_SIZE" onchange="changeOption()"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select></div>
+		<div><span class="option_title">错误列表长度 : </span><select id="OPTION_ERROR_SIZE" onchange="changeOption()"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大总正确次数 : </span><select id="OPTION_MAX_CORRECT_TM" onchange="changeOption()"><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option></select></div>
+		<div><span class="option_title">所需正确次数 : </span><select id="OPTION_NEED_CORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大重复错误次数 : </span><select id="OPTION_MAX_REPEAT_ERROR" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+		<div><span class="option_title">所需更正次数 : </span><select id="OPTION_NEED_RECORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">显示列表信息 : </span><input type="checkbox" id="OPTION_SHOW_LIST" checked="" onchange="changeOption()"></div>
+	</div>
+
+
+	<div id="aff" style="display: block;">
+		<div id="waiting_div" class="list_aff"></div>
+		<div id="current_div" class="list_aff"></div>
+		<div id="error_div" class="list_aff"><div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+</div>
+		<div id="finished_div" class="list_aff"></div>
+
+	</div>
+
+	<div id="testarea">1920</div>
+
+
+
+</div>
+<script type="text/javascript">
+	initLists();
+	affLists();	
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showStartButtonsByCondition();
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	hideDetail();
+
+	initOptions();
+	loadTxt("cosmos	n.m.	宇宙	l'exploration du cosmos lointain.	探索遥远的宇宙。	根：希腊语 kosmos（宇宙，秩序）→ 宇宙；同源：cosmique（宇宙的）、cosmétique（化妆品）\ngalaxie	n.f.	星系	la Voie lactée est notre galaxie.	银河系是我们的星系。	根：希腊语 galaxias（银河，gala 牛奶）→ 星系；同源：galactique（银河的）、lactose（乳糖）\nnébuleuse	n.f.	星云	une nébuleuse de gaz et de poussière.	由气体和尘埃组成的星云。	根：拉丁语 nebula（云，雾）→ 星云；同源：nébuleux（模糊的）、nuage（云）\nsystème solaire	n.m.	太阳系	les planètes rocheuses du système solaire.	太阳系的类地行星（岩石行星）。	不适用单词\norbite	n.f.	轨道	mettre un satellite en orbite géostationnaire.	将卫星送入地球静止轨道。	根：拉丁语 orbita（轨道，orbis 圆）→ 轨道；同源：orbe（球体）、orbital（轨道的）\ntrajectoire	n.f.	轨迹/弹道	calculer la trajectoire d'une comète.	计算彗星的轨道。	根：拉丁语 trajectus（投掷，trans- 越过 + jacere 投）→ 轨迹；同源：trajet（路程）、jet（喷射）\npesanteur	n.f.	重力	la loi de la pesanteur universelle.	万有引力定律。	根：拉丁语 pensare（称重，pendere 悬挂）→ 重力；同源：peser（称重）、poids（重量）\napesanteur	n.f.	失重状态	flotter en apesanteur dans la station.	在空间站中处于失重状态漂浮。	根：希腊语 a-（无）+ 拉丁语 pensare（称重）→ 失重；同源：pesanteur（重力）、peser（称重）\ngravitation	n.f.	万有引力	les ondes gravitationnelles.	引力波。	根：拉丁语 gravitas（重量，gravis 重的）→ 引力；同源：gravité（重力）、grave（严重的）\nexoplanète	n.f.	系外行星	la recherche de la vie sur une exoplanète.	在系外行星上寻找生命。	根：希腊语 exō（外部）+ 拉丁语 planeta（行星）→ 系外行星；同源：planète（行星）、exotique（异国的）\ntrou noir	n.m.	黑洞	l'horizon des événements d'un trou noir.	黑洞的事件视界。	不适用单词\nsupernova	n.f.	超新星	l'explosion d'une supernova.	超新星爆发。	根：拉丁语 super（超过）+ nova（新的）→ 超新星；同源：superbe（极好的）、nouveau（新的）\nastéroïde	n.m.	小行星	surveiller les astéroïdes géocroiseurs.	监测近地小行星。	根：希腊语 astēr（星）+ eidos（形状）→ 小行星；同源：astre（星体）、idée（观念）\nmétéorite	n.f.	陨石	l'impact d'une météorite géante.	巨大陨石的撞击。	根：希腊语 meteōros（高空的，meta- 之间 + aeirein 举起）→ 陨石；同源：météore（流星）、météorologie（气象学）\ncomète	n.f.	彗星	la queue lumineuse d'une comète.	彗星明亮的尾巴（彗尾）。	根：希腊语 komētēs（长发星，komē 头发）→ 彗星；同源：chevelure（头发）、crinière（鬃毛）\nconstellation	n.f.	星座/卫星群	une constellation de satellites Starlink.	星链（Starlink）卫星星座。	根：拉丁语 constellatio（星座，con- 共同 + stella 星）→ 星座；同源：étoile（星星）、stellaire（恒星的）\nastrophysique	n.f.	天体物理学	les avancées de l'astrophysique moderne.	现代天体物理学的进展。	根：希腊语 astron（星）+ physis（自然）→ 天体物理学；同源：astre（星体）、physique（物理学）\ncosmologie	n.f.	宇宙学	le Big Bang est un concept de cosmologie.	大爆炸是宇宙学的一个概念。	根：希腊语 kosmos（宇宙）+ logos（学）→ 宇宙学；同源：cosmique（宇宙的）、cosmopolite（世界主义的）\nrayonnement	n.m.	辐射	le rayonnement fossile de l'univers.	宇宙微波背景辐射（宇宙化石辐射）。	根：拉丁语 radius（光线，辐条）→ 辐射；同源：rayon（射线）、rayonner（辐射）\nspectre	n.m.	光谱	l'analyse du spectre lumineux.	光谱分析。	根：拉丁语 spectrum（形象，specere 看）→ 光谱；同源：spectacle（景象）、inspecter（检查）\ntélescope	n.m.	望远镜	le télescope spatial James Webb.	詹姆斯·韦伯空间望远镜。	根：希腊语 tēle（远）+ skopein（观察）→ 望远镜；同源：téléphone（电话）、microscope（显微镜）\nobservatoire	n.m.	天文台	l'observatoire du Pic du Midi.	南日峰天文台。	根：拉丁语 observare（观察，ob- 朝向 + servare 保护）→ 天文台；同源：observer（观察）、observation（观测）\nsonde	n.f.	探测器	envoyer une sonde vers Mars.	向火星发送探测器。	根：古法语 sonder（探测，可能源自拉丁语 subundare 在下面波动）→ 探测器；同源：sonder（探测）、insondable（深不可测的）\nrover	n.m.	火星车/月球车	le rover Curiosity explore le sol martien.	“好奇号”火星车探测火星土壤。	根：英语 rove（漫游，可能源自荷兰语）→ 探测车；同源：rôder（徘徊）、rôdeur（流浪者）\nlanceur	n.m.	火箭/运载工具	Ariane 6 est le nouveau lanceur européen.	阿丽亚娜6号是欧洲新型运载火箭。	根：拉丁语 lanceare（投掷，lancea 矛）→ 运载火箭；同源：lancer（投掷）、lance（矛）\nfusée	n.f.	火箭	le décollage d'une fusée.	火箭升空。	根：拉丁语 fusus（纺锤）→ 火箭；同源：fuseau（纺锤）、fusil（步枪）\npropulsion	n.f.	推进	la propulsion ionique.	离子推进。	根：拉丁语 propulsio（推动，pro- 向前 + pellere 推）→ 推进；同源：propulser（推进）、repousser（推回）\ncarburant	n.m.	燃料	l'hydrogène liquide comme carburant.	液氢作为燃料。	根：拉丁语 carbo（碳）→ 燃料；同源：carbone（碳）、charbon（煤）\ncharge utile	n.f.	有效载荷	la charge utile d'un satellite.	卫星的有效载荷。	不适用单词\namarrage	n.m.	对接	l'amarrage réussi à l'ISS.	与国际空间站成功对接。	根：荷兰语 aanmeren（系泊）→ 对接；同源：amarrer（系泊）、mare（池塘）\nalunissage	n.m.	月球着陆	le premier alunissage en 1969.	1969年首次登月。	根：拉丁语 ad-（向）+ luna（月亮）→ 登月；同源：lune（月亮）、lunaire（月球的）\natterrissage	n.m.	着陆	un atterrissage en douceur sur Titan.	在土卫六（泰坦星）上软着陆。	根：拉丁语 ad-（向）+ terra（地球）→ 着陆；同源：atterrir（着陆）、terre（地球）\nmodule	n.m.	舱/模块	le module de commande.	指令舱。	根：拉丁语 modulus（小模型，modus 方式）→ 舱；同源：moduler（调节）、mode（方式）\nécoutille	n.f.	舱口	ouvrir l'écoutille pour une sortie spatiale.	打开舱门进行太空行走。	根：西班牙语 escotilla（舱口，小开口）→ 舱口；同源：écouter（听，源自拉丁语 auscultare）、écouté（被听的）\nscaphandre	n.m.	航天服	la pressurisation du scaphandre.	航天服的加压。	根：希腊语 skaphos（船）+ anēr（人）→ 太空服；同源：scaphandrier（潜水员）、anthropologie（人类学）\néclipse	n.f.	蚀 (日食/月食)	une éclipse totale de soleil.	日全食。	根：希腊语 ekleipsis（消失，ek- 出 + leipein 留下）→ 日食；同源：ellipse（椭圆）、laisser（留下）\nsolstice	n.m.	冬至/夏至	le solstice d'été.	夏至。	根：拉丁语 solstitium（太阳停顿，sol 太阳 + sistere 站）→ 至日；同源：soleil（太阳）、stable（稳定的）\néquinoxe	n.m.	春分/秋分	l'équinoxe d'automne.	秋分。	根：拉丁语 aequinoctium（昼夜平分，aequus 相等 + nox 夜）→ 分日；同源：égal（相等的）、nuit（夜晚）\nzénith	n.m.	天顶	le soleil est au zénith.	太阳处于天顶位置。	根：阿拉伯语 samt ar-ra's（头顶方向）→ 天顶；同源：azimut（方位角）、nadir（天底）\nvitesse de la lumière	n.f.	光速	rien ne dépasse la vitesse de la lumière.	没有任何物体能超过光速。	不适用单词\nannée-lumière	n.f.	光年	une distance de plusieurs années-lumière.	几光年的距离。	不适用单词\nvide	n.m.	真空	la propagation du son est impossible dans le vide.	声音无法在真空中传播。	根：拉丁语 viduus（空的）→ 真空；同源：vider（清空）、veuf（鳏夫）\nmatière noire	n.f.	暗物质	l'énigme de la matière noire.	暗物质之谜。	不适用单词\nénergie sombre	n.f.	暗能量	l'expansion de l'univers due à l'énergie sombre.	暗能量导致的宇宙膨胀。	不适用单词\nmultivers	n.m.	多元宇宙	la théorie du multivers.	多重宇宙理论。	根：拉丁语 multi-（多）+ versus（转向）→ 多重宇宙；同源：multiple（多重的）、univers（宇宙）\nquantique	adj.	量子的	la mécanique quantique.	量子力学。	根：拉丁语 quantum（多少，quantus 多少的）→ 量子的；同源：quantité（数量）、quantifier（量化）\natome	n.m.	原子	le noyau de l'atome.	原子核。	根：希腊语 atomos（不可分的，a- 无 + temnein 切）→ 原子；同源：atomique（原子的）、anatomie（解剖学）\nparticule	n.f.	粒子	un accélérateur de particules (CERN).	粒子加速器（CERN）。	根：拉丁语 particula（小部分，pars 部分）→ 粒子；同源：partie（部分）、partager（分享）\nphoton	n.m.	光子	le photon est une particule de lumière.	光子是一种光微粒。	根：希腊语 phōs（光）→ 光子；同源：photographie（摄影）、phosphore（磷）\nélectron	n.m.	电子	le flux d'électrons.	电子流。	根：希腊语 ēlektron（琥珀）→ 电子；同源：électricité（电）、électrique（电的）\nnanotechnologie	n.f.	纳米技术	manipuler la matière à l'échelle de la nanotechnologie.	在纳米技术尺度下操纵物质。	根：希腊语 nanos（矮人）+ technē（技艺）+ logos（学）→ 纳米技术；同源：nanomètre（纳米）、technologie（技术）\nintelligence artificielle	n.f.	人工智能	l'essor de l'intelligence artificielle générative.	生成式人工智能的兴起。	不适用单词\nalgorithme	n.m.	算法	un algorithme d'apprentissage profond.	深度学习算法。	根：阿拉伯数学家 Al-Khwarizmi（花拉子米）名字拉丁化→ 算法；同源：algèbre（代数）、chiffre（数字）\nrobotique	n.f.	机器人学	la robotique humanoïde.	类人机器人（人形机器人）。	根：捷克语 robota（强制劳动）→ 机器人技术；同源：robot（机器人）、robotiser（机器人化）\nautomatisation	n.f.	自动化	l'automatisation des chaînes de production.	生产线的自动化。	根：希腊语 automatos（自动的，autos 自己 + maomai 努力）→ 自动化；同源：automatique（自动的）、automate（自动机）\nnumérisation	n.f.	数字化	la numérisation de l'économie.	经济数字化。	根：拉丁语 numerus（数字）→ 数字化；同源：numérique（数字的）、nombre（数字）\nbig data	n.m.	大数据	l'analyse du big data.	大数据分析。	不适用单词\ncloud	n.m.	云端	stocker des données sur le cloud.	在云端存储数据。	根：英语 cloud（云）→ 云计算；同源：nuage（云，源自拉丁语 nebula）、nébuleux（模糊的）\ncyber-sécurité	n.f.	网络安全	les enjeux de la cyber-sécurité.	网络安全挑战。	不适用单词\ncryptographie	n.f.	密码学	la cryptographie post-quantique.	后量子密码学。	根：希腊语 kryptos（隐藏）+ graphein（写）→ 密码学；同源：crypte（地窖）、graphique（图表）\nblockchain	n.f.	区块链	la technologie blockchain.	区块链技术。	不适用单词\nvirtuel	adj.	虚拟的	la réalité virtuelle.	虚拟现实。	根：拉丁语 virtualis（潜在的，virtus 力量）→ 虚拟的；同源：vertu（美德）、virtuel（虚拟的）\naugmenté	adj.	增强的	la réalité augmentée.	增强现实。	根：拉丁语 augmentare（增加，augere 增长）→ 增强的；同源：augmenter（增加）、augmentation（增长）\nimmersion	n.f.	沉浸	une immersion totale dans le métavers.	完全沉浸在元宇宙中。	根：拉丁语 immersio（浸入，in- 进入 + mergere 浸）→ 沉浸；同源：immerger（浸入）、émerger（浮现）\ninterface	n.f.	界面/接口	l'interface cerveau-machine.	脑机接口。	根：拉丁语 inter-（之间）+ facies（面）→ 界面；同源：surface（表面）、face（脸）\npuce	n.f.	芯片	une puce électronique haute performance.	高性能电子芯片。	根：拉丁语 pulex（跳蚤）→ 芯片；同源：puceron（蚜虫）、pulluler（滋生）\nsemi-conducteur	n.m.	半导体	la pénurie mondiale de semi-conducteurs.	全球半导体短缺。	不适用单词\ntransistor	n.m.	三极管/晶体管	des milliards de transistors par processeur.	每个处理器拥有数十亿个晶体管。	根：英语 transfer（转移）+ resistor（电阻）→ 晶体管；同源：transférer（转移）、résistance（电阻）\ncircuit intégré	n.m.	集成电路	la miniaturisation des circuits intégrés.	集成电路的微型化。	不适用单词\nsupercalculateur	n.m.	超级计算机	la puissance d'un supercalculateur.	超级计算机的功率。	根：拉丁语 super（超过）+ calculare（计算，calculus 小石）→ 超级计算机；同源：calculer（计算）、calcul（计算）\nordinateur quantique	n.m.	量子计算机	le futur de l'ordinateur quantique.	量子计算机的未来。	不适用单词\nbit/octet	n.m.	比特/字节	un fichier de plusieurs giga-octets.	几GB大小的文件。	不适用单词\nencodage	n.m.	编码	l'encodage des données sensibles.	敏感数据的编码。	根：拉丁语 in-（进入）+ codex（法典）→ 编码；同源：encoder（编码）、code（代码）\nhaut débit	n.m.	宽带/高带宽	la fibre permet le haut débit.	光纤实现宽带传输。	不适用单词\nfréquence	n.f.	频率	la fréquence de rafraîchissement.	刷新率。	根：拉丁语 frequentia（频繁，frequens 频繁的）→ 频率；同源：fréquent（频繁的）、fréquenter（常去）\nbande passante	n.f.	带宽	saturer la bande passante.	带宽饱和。	不适用单词\nlatence	n.f.	延迟	réduire la latence pour le jeu en ligne.	降低在线游戏的延迟。	根：拉丁语 latentia（潜伏，latere 隐藏）→ 延迟；同源：latent（潜在的）、latence（潜伏期）\nsatellite	n.m.	卫星	un satellite de télécommunications.	通信卫星。	根：拉丁语 satelles（随从，护卫）→ 卫星；同源：satelliser（发射卫星）、satellitaire（卫星的）\ntélémesure	n.f.	遥测	recevoir la télémesure en temps réel.	接收实时遥测数据。	根：希腊语 tēle（远）+ 拉丁语 mensura（测量）→ 遥测；同源：téléphone（电话）、mesure（测量）\ncapteur	n.m.	传感器	un capteur d'image haute résolution.	高分辨率图像传感器。	根：拉丁语 captare（捕捉，capere 抓取）→ 传感器；同源：capter（捕捉）、capture（捕获）\nactionneur	n.m.	执行器	l'actionneur robotique.	机器人执行器。	根：拉丁语 actio（行动，agere 做）→ 执行器；同源：action（行动）、actif（主动的）\noptique	adj./n.f.	光学的/光学	la reconnaissance optique.	光学识别。	根：希腊语 optikos（视觉的，ops 眼睛）→ 光学；同源：opticien（眼镜商）、œil（眼睛）\nlaser	n.m.	激光	la découpe au laser.	激光切割。	根：英语缩写 Light Amplification by Stimulated Emission of Radiation → 激光；同源：lumière（光）、radiation（辐射）\nfaisceau	n.m.	束/波束	un faisceau de protons.	质子束。	根：拉丁语 fascis（束，捆）→ 光束；同源：fascicule（分册）、faisceau（束）\nbiotechnologie	n.f.	生物技术	les percées de la biotechnologie.	生物技术的突破。	根：希腊语 bios（生命）+ technē（技艺）+ logos（学）→ 生物技术；同源：biologie（生物学）、technologie（技术）\ngénie génétique	n.m.	基因工程	les débats sur le génie génétique.	关于基因工程的辩论。	不适用单词\nséquençage	n.m.	测序	le séquençage rapide de l'ADN.	快速DNA测序。	根：拉丁语 sequentia（序列，sequi 跟随）→ 测序；同源：séquence（序列）、conséquence（后果）\nclonage	n.m.	克隆	le clonage thérapeutique.	治疗性克隆。	根：希腊语 klōn（嫩枝）→ 克隆；同源：clone（克隆体）、cloner（克隆）\nimprimante 3D	n.f.	3D 打印机	fabriquer des pièces via une imprimante 3D.	通过3D打印机制造零件。	不适用单词\nfabrication additive	n.f.	增材制造 (3D打印专业语)	les avantages de la fabrication additive.	增材制造的优势。	不适用单词\nmatériau composite	n.m.	复合材料	l'usage de matériaux composites en aéronautique.	航空航天领域复合材料的使用。	不适用单词\nalliage	n.m.	合金	un alliage de titane léger et résistant.	轻质且高强度的钛合金。	根：拉丁语 alligare（绑在一起，ad- 向 + ligare 绑）→ 合金；同源：allier（结合）、lier（绑）\npolymère	n.m.	聚合物	l'industrie des polymères.	聚合物工业。	根：希腊语 poly-（多）+ meros（部分）→ 聚合物；同源：polymorphe（多形的）、morceau（片段）\nconductivité	n.f.	导电性	la supra-conductivité à température ambiante.	室温超导。	根：拉丁语 conducere（引导，con- 共同 + ducere 引领）→ 传导性；同源：conducteur（导体）、conduite（管道）\nisolant	n.m./adj.	绝缘体/绝缘的	un matériau thermique isolant.	热绝缘材料。	根：意大利语 isolare（隔离，拉丁语 insula 岛）→ 绝缘体；同源：isoler（隔离）、île（岛）\nénergie renouvelable	n.f.	可再生能源	investir dans l'énergie renouvelable.	投资可再生能源。	不适用单词\nphotovoltaïque	adj.	光伏的	le rendement des cellules photovoltaïques.	光伏电池的效率。	根：希腊语 phōs（光）+ 意大利物理学家 Volta（伏打）→ 光伏的；同源：photographie（摄影）、volt（伏特）\néolien	adj.	风能的	l'énergie éolienne offshore.	离岸风电（海上风电）。	根：希腊语 Aiolos（风神埃俄罗斯）→ 风能的；同源：éole（风神）、ventilation（通风）\nhydrogène vert	n.m.	绿氢	le stockage de l'hydrogène vert.	绿氢的储存。	不适用单词\nfusion nucléaire	n.f.	核聚变	le projet ITER sur la fusion nucléaire.	ITER受控核聚变项目。	不适用单词\nfission	n.f.	裂变	la fission dans les centrales actuelles.	现有核电站中的核裂变。	根：拉丁语 fissio（分裂，findere 分裂）→ 裂变；同源：fissure（裂缝）、fendre（劈开）\nréacteur	n.m.	反应堆/发动机	un réacteur à eau pressurisée.	压水反应堆。	根：拉丁语 re-（回）+ agere（做）→ 反应堆；同源：réaction（反应）、action（行动）\nconfinement	n.m.	封闭/磁约束	le confinement magnétique du plasma.	等离子体的磁约束。	根：拉丁语 confinis（接壤的，con- 共同 + finis 边界）→ 约束；同源：confiner（限制）、frontière（边界）\nplasma	n.m.	等离子体	l'état de plasma.	等离子态。	根：希腊语 plasma（形成物，plassein 塑造）→ 等离子体；同源：plastique（塑料）、plâtre（石膏）\nthermodynamique	n.f.	热力学	les principes de la thermodynamique.	热力学原理。	根：希腊语 thermē（热）+ dynamis（力量）→ 热力学；同源：thermique（热的）、dynamique（动力学）\ncinétique	adj.	动能的	l'énergie cinétique.	动能。	根：希腊语 kinētikos（运动的，kinein 移动）→ 动力学；同源：cinéma（电影）、kinésithérapie（运动疗法）\npotentiel	adj.	位能的	l'énergie potentielle.	势能。	根：拉丁语 potentia（力量，potens 有力的）→ 势能；同源：puissance（功率）、pouvoir（能力）\nentropie	n.f.	熵	l'augmentation de l'entropie.	熵增。	根：希腊语 en-（在内）+ tropē（转变）→ 熵；同源：entropique（熵的）、tropique（热带）\nfinesse	n.f.	精细度/滑翔比	la finesse d'une gravure de puce.	芯片刻蚀的精细度。	根：拉丁语 finis（结束，边界）→ 精细度；同源：fin（细的）、finir（结束）\nnanomètre	n.m.	纳米	une gravure en 3 nanomètres.	3纳米工艺（3纳米刻蚀）。	根：希腊语 nanos（矮人）+ metron（测量）→ 纳米；同源：nanotechnologie（纳米技术）、mètre（米）\nmicron	n.m.	微米	la taille d'un micron.	微米级大小。	根：希腊语 mikros（小的）→ 微米；同源：microscopique（微观的）、microbe（微生物）\nminiaturisation	n.f.	小型化	la miniaturisation des composants.	组件的微型化。	根：意大利语 miniatura（细密画，拉丁语 minium 红铅）→ 微型化；同源：miniature（缩影）、minimal（最小的）\nobsolescence	n.f.	过时	l'obsolescence technologique.	技术性过时。	根：拉丁语 obsolescere（废弃，ob- 离开 + solere 习惯）→ 过时；同源：obsolète（过时的）、désuet（废弃的）\ninnovation	n.f.	创新	le moteur de l'innovation.	创新的动力。	根：拉丁语 innovatio（更新，in- 进入 + novus 新）→ 创新；同源：innover（创新）、nouveau（新的）\ndisruption	n.f.	颠覆	une technologie de disruption.	颠覆性技术。	根：拉丁语 disruptio（破裂，dis- 分开 + rumpere 破）→ 颠覆；同源：disruptif（颠覆性的）、rupture（破裂）\nbrevet	n.m.	专利	déposer un brevet d'invention.	申请发明专利。	根：拉丁语 brevis（短的）→ 专利；同源：bref（简短的）、abréger（缩短）\nprototype	n.m.	原型	tester un prototype de voiture volante.	测试飞行汽车原型。	根：希腊语 prōtotupos（原型，prōtos 第一 + tupos 类型）→ 原型；同源：protocole（协议）、type（类型）\nmaquette	n.f.	模型	une maquette numérique.	数字模型。	根：意大利语 macchietta（小斑点，macchia 斑点）→ 模型；同源：maculer（弄脏）、immaculé（无瑕的）\nsimulation	n.f.	模拟	une simulation par ordinateur.	计算机模拟。	根：拉丁语 simulatio（模仿，simulare 模仿）→ 模拟；同源：simuler（模拟）、similaire（相似的）\nfiabilité	n.f.	可靠性	la fiabilité des systèmes critiques.	关键系统的可靠性。	根：拉丁语 fides（信任）→ 可靠性；同源：fiable（可靠的）、confiance（信心）\nmaintenance	n.f.	维护	la maintenance prédictive.	预测性维护。	根：拉丁语 manu tenere（手持，manus 手 + tenere 持）→ 维护；同源：maintenir（维持）、tenir（持有）\ndiagnostic	n.m.	诊断	un diagnostic automatique des pannes.	故障自动诊断。	根：希腊语 diagnōstikos（能辨别的，dia- 穿过 + gignōskein 认识）→ 诊断；同源：diagnostiquer（诊断）、connaissance（知识）\nsystème embarqué	n.m.	嵌入式系统	les logiciels dans les systèmes embarqués.	嵌入式系统中的软件。	不适用单词\ncapacité	n.f.	容量/能力	la capacité de stockage.	存储容量。	根：拉丁语 capacitas（容量，capere 拿）→ 容量；同源：capable（有能力的）、capture（捕获）\nflux	n.m.	流/流量	le flux de données (streaming).	数据流（流媒体）。	根：拉丁语 fluxus（流动，fluere 流）→ 流量；同源：fluide（流体）、fluidité（流动性）\nstreaming	n.m.	流媒体	la diffusion en streaming.	流媒体播放。	根：英语 stream（流）→ 流媒体；同源：courant（流动，源自拉丁语 currere）、flux（流量）\ninteropérabilité	n.f.	互操作性	l'interopérabilité entre différents logiciels.	不同软件之间的互操作性。	根：拉丁语 inter-（之间）+ operari（工作）→ 互操作性；同源：opérer（操作）、coopération（合作）\nstandardisation	n.f.	标准化	la standardisation des protocoles.	协议标准化。	根：英语 standard（标准）→ 标准化；同源：norme（标准）、normaliser（标准化）\nnorme	n.f.	标准	la norme 5G.	5G标准。	根：拉丁语 norma（规矩，木工角尺）→ 标准；同源：normal（正常的）、normaliser（标准化）\nspectre radio	n.m.	无线电频谱	l'attribution des fréquences du spectre radio.	无线电频谱频率分配。	不适用单词\nantenne	n.f.	天线	une antenne parabolique.	抛物面天线（卫星天线）。	根：拉丁语 antenna（帆桁）→ 天线；同源：antenne（触角）、antennaire（天线的）\németteur	n.m.	发射机	l'émetteur radio.	无线电发射机。	根：拉丁语 emittere（发出，e- 出 + mittere 送）→ 发射器；同源：émettre（发射）、mission（使命）\nrécepteur	n.m.	接收机	le récepteur GPS.	GPS接收机。	根：拉丁语 receptor（接收者，recipere 接收）→ 接收器；同源：recevoir（接收）、réception（接收）\ngéolocalisation	n.f.	地理定位	la géolocalisation par satellite.	卫星定位（地理位置。	根：希腊语 gē（地球）+ 拉丁语 locus（地方）→ 地理定位；同源：géographie（地理）、localiser（定位）\ncartographie	n.f.	制图/映射	la cartographie stellaire.	星图绘制。	根：希腊语 chartēs（纸）+ graphein（写）→ 制图；同源：carte（地图）、graphique（图表）\ntélédétection	n.f.	遥感	la télédétection des ressources terrestres.	陆地资源遥感。	根：希腊语 tēle（远）+ 拉丁语 detectio（发现）→ 遥感；同源：téléphone（电话）、détecter（探测）\nimagerie	n.f.	成像	l'imagerie satellite haute résolution.	高分辨率卫星图像。	根：拉丁语 imago（形象）→ 成像；同源：image（图像）、imaginer（想象）\ninfrarouge	adj./n.m.	红外线的	une caméra infrarouge.	红外摄像头。	根：拉丁语 infra（下面）+ 法语 rouge（红色）→ 红外线；同源：infrastructure（基础设施）、rouge（红色）\nultraviolet	adj./n.m.	紫外线的	l'indice ultraviolet.	紫外线指数。	根：拉丁语 ultra（超过）+ 法语 violet（紫色）→ 紫外线；同源：ultérieur（后来的）、violet（紫罗兰）\nrayon X	n.m.	X射线	l'astronomie en rayons X.	X射线天文学。	不适用单词\ngamma	adj.	伽马	un sursaut gamma.	伽马射线暴。	根：希腊语 gamma（希腊字母表第三个字母）→ 伽马射线；同源：alphabet（字母表）、alphabétique（按字母顺序的）\nonde radio	n.f.	无线电波	capter des ondes radio.	捕捉无线电波。	不适用单词\nmicro-onde	n.f.	微波	le fond diffus cosmologique en micro-ondes.	微波背景辐射。	不适用单词\nfréquence	n.f.	频率	une haute fréquence.	高频。	根：拉丁语 frequentia（频繁，frequens 频繁的）→ 频率；同源：fréquent（频繁的）、fréquenter（常去）\namplitude	n.f.	振幅	moduler l'amplitude.	调幅。	根：拉丁语 amplitudo（宽广，amplus 宽的）→ 振幅；同源：ample（宽敞的）、amplifier（放大）\nphase	n.f.	相位	être en phase.	同相（在相位上）。	根：希腊语 phasis（出现，phainein 显示）→ 相位；同源：emphase（强调）、phénomène（现象）\ninterférence	n.f.	干扰	les interférences électromagnétiques.	电磁干扰。	根：拉丁语 interferere（介入，inter- 之间 + ferire 打）→ 干涉；同源：interférer（干涉）、différer（不同）\nrésonance	n.f.	共振	l'imagerie par résonance magnétique (IRM).	磁共振成像（IRM/MRI）。	根：拉丁语 resonare（回响，re- 再 + sonare 响）→ 共振；同源：résonner（回响）、son（声音）\nmagnétisme	n.m.	磁性	le magnétisme des planètes.	行星磁场。	根：希腊语 magnētis（磁石，源自小亚细亚地名 Magnēsia）→ 磁性；同源：magnétique（磁的）、aimant（磁铁）\ngravité	n.f.	重力	la micro-gravité.	微重力。	根：拉丁语 gravitas（重量，gravis 重的）→ 重力；同源：grave（严重的）、aggraver（加重）\ninertie	n.f.	惯性	la force d'inertie.	惯性力。	根：拉丁语 inertia（无活力，in- 无 + ars 技艺）→ 惯性；同源：inerte（惰性的）、inertiel（惯性的）\naccélération	n.f.	加速度	l'accélération centrifuge.	离心加速度。	根：拉丁语 acceleratio（加速，ad- 向 + celer 快）→ 加速度；同源：accélérer（加速）、célérité（速度）\nvitesse angulaire	n.f.	角速度	mesurer la vitesse angulaire.	测量角速度。	不适用单词\nfriction	n.f.	摩擦	la friction atmosphérique lors de la rentrée.	再入大气层时的摩擦。	根：拉丁语 frictio（摩擦，fricare 摩擦）→ 摩擦力；同源：frictionner（摩擦）、frottement（摩擦）\ncombustion	n.f.	燃烧	la chambre de combustion.	燃烧室。	根：拉丁语 combustio（燃烧，com- 完全 + urere 燃烧）→ 燃烧；同源：combustible（可燃物）、comburant（助燃剂）\nchaleur	n.f.	热量	le bouclier thermique contre la chaleur.	防热隔热罩。	根：拉丁语 calor（热）→ 热量；同源：chaud（热的）、chauffer（加热）\ntempérature	n.f.	温度	le zéro absolu est la température la plus basse.	绝对零度是最低温度。	根：拉丁语 temperatura（调和，temperare 调节）→ 温度；同源：tempérer（调节）、tempérament（性情）\ncryogénie	n.f.	低温实验/冷冻学	la cryogénie pour le carburant fusée.	用于火箭燃料的低温学。	根：希腊语 kryos（寒冷）+ genēs（产生）→ 低温学；同源：cryogénique（低温的）、congeler（冷冻）\nsupraconducteur	n.m.	超导体	les aimants supraconducteurs.	超导磁体。	根：拉丁语 supra（上面）+ conducere（引导）→ 超导体；同源：suprême（最高的）、conducteur（导体）\nsemiconducteur	n.m.	半导体	l'industrie du semiconducteur.	半导体产业。	根：拉丁语 semi-（半）+ conducere（引导）→ 半导体；同源：semi-automatique（半自动的）、conducteur（导体）\ntransistor	n.m.	晶体管	la taille des transistors.	晶体管尺寸。	根：英语 transfer（转移）+ resistor（电阻）→ 晶体管；同源：transférer（转移）、résistance（电阻）\nnanomètre	n.m.	纳米	graver à l'échelle du nanomètre.	纳米级刻蚀。	根：希腊语 nanos（矮人）+ metron（测量）→ 纳米；同源：nanotechnologie（纳米技术）、mètre（米）\nphotonique	n.f.	光子学	la photonique remplace l'électronique.	光子学取代电子学。	根：希腊语 phōs（光）→ 光子学；同源：photon（光子）、photographie（摄影）\nlasers	n.m.pl.	激光器	la communication par lasers.	激光通信。	根：英语缩写 Light Amplification by Stimulated Emission of Radiation → 激光；同源：laser（激光）、lumière（光）\nfibre optique	n.f.	光纤	le déploiement de la fibre optique.	光纤部署。	不适用单词\nréseau	n.m.	网络	un réseau de neurones artificiels.	人工神经网络。	根：拉丁语 retis（网）→ 网络；同源：filet（网）、réticulaire（网状的）\nneurone	n.m.	神经元	l'architecture des neurones.	神经元架构。	根：希腊语 neuron（神经）→ 神经元；同源：neurologie（神经学）、nerf（神经）\nsynapse	n.f.	突触	les synapses virtuelles.	虚拟突触。	根：希腊语 synapsis（连接，syn- 共同 + haptein 接触）→ 突触；同源：synopsis（概要）、syndicat（工会）\ncognitif	adj.	认知的	l'informatique cognitive.	认知计算。	根：拉丁语 cognitus（认识的，cognoscere 认识）→ 认知的；同源：cognition（认知）、connaître（认识）\nhumanité	n.f.	人类	le futur de l'humanité.	人类的未来。	根：拉丁语 humanitas（人性，humanus 人的）→ 人类；同源：humain（人类的）、humanisme（人文主义）\ntranshumanisme	n.m.	超人类主义	le débat sur le transhumanisme.	关于超人类主义的辩论。	根：拉丁语 trans-（超越）+ humanus（人的）→ 超人类主义；同源：transcender（超越）、humain（人类的）\néthique	n.f.	伦理	l'éthique de l'IA.	人工智能伦理。	根：希腊语 ēthikos（道德的，ēthos 习俗）→ 伦理；同源：éthos（精神气质）、ethnique（民族的）\ngouvernance	n.f.	治理	la gouvernance de l'espace.	空间治理。	根：希腊语 kybernan（驾驶）→ 治理；同源：gouverner（统治）、gouvernement（政府）\ntraité	n.m.	条约	le traité de l'espace de 1967.	1967年《外层空间条约》。	根：拉丁语 tractatus（处理，tractare 处理）→ 条约；同源：traiter（处理）、traitement（处理）\nsouveraineté	n.f.	主权	la souveraineté numérique.	数字主权。	根：拉丁语 superanus（至高的，super 上面）→ 主权；同源：souverain（君主）、suprême（最高的）\nautonomie	n.f.	自主性	l'autonomie d'un robot.	机器人的自主性。	根：希腊语 autonomia（自治，autos 自己 + nomos 法则）→ 自主；同源：autonome（自主的）、automobile（汽车）\nrésilience	n.f.	韧性	la résilience des infrastructures.	基础设施的韧性。	根：拉丁语 resilire（弹回，re- 回 + salire 跳）→ 韧性；同源：résilient（有韧性的）、saillir（突出）\nprospective	n.f.	展望/预测	faire de la prospective technologique.	进行技术预测（前瞻研究）。	根：拉丁语 prospectus（展望，pro- 向前 + specere 看）→ 前瞻；同源：prospérer（繁荣）、spectacle（景象）\navenir	n.m.	未来	l'avenir est radieux.	未来是灿烂的。	根：拉丁语 advenire（到来，ad- 向 + venire 来）→ 未来；同源：advenir（发生）、venir（来）");
+	
+
+
+	document.getElementById("testarea").innerHTML = window.screen.width;
+</script>
+
+
+
+<deepl-input-controller><template shadowrootmode="open"><link rel="stylesheet" href="chrome-extension://cofdbpoegempjloogbagkncekinflcnj/build/content.css"><div dir="ltr"><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller></body></html>

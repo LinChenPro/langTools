@@ -1,0 +1,1071 @@
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<!-- saved from url=(0041)https://www.budingparis.com/tests/VT.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<script type="text/javascript">
+// levels constents
+var INIT_LEVEL = 50;
+var MAX_LEVEL = 100;
+
+// list size definition
+var MAX_CRT_SIZE = 10;
+var ERROR_SIZE = 3;
+
+// repeat time définitions
+var MAX_CORRECT_TM = 20;
+var MAX_REPEAT_ERROR = 3;
+var NEED_CORRECT_TM = 4;
+var NEED_RECORRECT_TM = 3;
+var ERROR_WAIT_LENGTH = 4;
+
+var STATUT_WATTING = 1;
+var STATUT_CRT = 2;
+var STATUT_ERROR = 3;
+var STATUT_FINISHED = 4;
+
+var SHOW_LIST = true;
+
+// list functions
+// return if arr contient findValue
+function contains(arr, findValue){
+	for(var i=0; i<arr.length; i++){
+		if(arr[i]==findValue){
+			return true;
+		}
+	}
+	return false;
+}
+function removeValue(list, value){
+	for(i in list){
+		if(list[i] == value){
+			list.splice(i, 1);
+		}
+	}	
+}
+
+
+// random 0 to n-1, ratio i / i+1 = d 
+function randomRatio(n, d){// alert(currentList.length + ", " + n + "," + d)
+	if(d==1){
+		return random(n);
+	}
+	var N = (Math.pow(d, n)-1);
+	var r = N + 1 - Math.random() * N;
+	return n - Math.ceil(Math.log(r) / Math.log(d));
+}
+
+// random 0 to n-1
+function random(n){
+	return Math.floor(Math.random()*n);
+}
+
+// lists
+var waitingList;
+var finishedList;
+var currentList;
+var errorList;
+function initEmptyLists(){
+	waitingList = new Array();
+	finishedList = new Array();
+	currentList = new Array();
+	errorList = [emptyWordId(), emptyWordId(), emptyWordId()];
+
+}
+
+function emptyWordId(){
+	return -(random(1000)+1000);
+}
+
+function isEmptyWordId(i){
+	return i<0;
+}
+
+function isValidWordId(i){
+	return i>=0 && i< words.length;
+}
+
+function initLists(){
+	initEmptyLists();
+
+	for(var i=0; i<words.length; i++){
+		toWaitting(i);
+	}
+
+	for(var i=0; i<MAX_CRT_SIZE; i++){
+		if(waitingList.length==0){
+			break;
+		}
+		r = random(waitingList.length);
+		toCurrent(waitingList.splice(r, 1)[0]);
+	}
+}
+
+// functions that set value i into a list
+function changeToList(i, list, statut, pos){	
+	// remove if already exist
+	removeValue(waitingList, i);
+	removeValue(currentList, i);
+	removeValue(errorList, i);
+	removeValue(finishedList, i);
+
+	if(pos==null || list.length<pos){
+		list.push(i);
+	}else{
+		list.splice(pos, 0, i);
+	}
+	if(isValidWordId(i) && (statut==STATUT_WATTING || words[i].statut != STATUT_FINISHED)){
+		words[i].statut = statut;
+	}
+}
+
+function toWaitting(i){
+	if(!isEmptyWordId(i) && words[i].statut != STATUT_WATTING){
+		words[i].totalCorrectCt = 0;
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, waitingList, STATUT_WATTING);
+}
+
+function toCurrent(i, pos){
+	if(isValidWordId(i) && words[i].statut != STATUT_CRT){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, currentList, STATUT_CRT, pos);
+}
+
+function toError(i){
+	if(isValidWordId(i) && words[i].statut != STATUT_ERROR){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, errorList, STATUT_ERROR);
+	if( errorList.length > ERROR_SIZE){
+		for(i=errorList.length; i>=0; i--){
+			if(isEmptyWordId(errorList[i])){
+				errorList.splice(i, 1);
+				break;
+			}
+		}
+	}
+}
+
+function toFinished(i){
+	changeToList(i, finishedList, STATUT_FINISHED);
+}
+
+// affichage functions
+function affLists(){
+	showList(waitingList, "waiting_div");
+	showList(finishedList, "finished_div");
+	showList(currentList, "current_div");
+	showList(errorList, "error_div");
+	document.getElementById("aff").style.display = SHOW_LIST ? "block" : "none";
+}
+
+function showList(list, divId){
+	var div = document.getElementById(divId);
+	div.innerHTML = "";
+	for(var i=0; i<list.length; i++){
+		div.innerHTML += getWordAff(list[i]);
+	}
+}
+
+function getWordAff(i){
+	if(isValidWordId(i)){
+		var word = words[i];
+		colorCode = getColorCode(word.level)
+		var selectedword = (i==SELECTED_WORD_ID)?" crtword" : "";
+		var finishedword = (word.statut==STATUT_FINISHED)?" finishedword" : "";
+		return '<div class="affword'+ selectedword + finishedword + '" style="background-color:'+colorCode+'">'
+				+ getIndiceBlock("error", MAX_REPEAT_ERROR, word.repeatErrCt)
+				+ (
+					word.statut==STATUT_ERROR 
+					? getIndiceBlock("recorect", NEED_RECORRECT_TM, word.correctCt) 
+					: getIndiceBlock("correct", NEED_CORRECT_TM, word.correctCt) 
+				)
+				+ getIndiceBlock("total", MAX_CORRECT_TM, word.totalCorrectCt)
+				+ word.word +'</div>\n';
+	}else{
+		return '<div class="affword_null" style="background-color:white">&nbsp;</div>\n';
+	}
+}
+
+function getIndiceBlock(name, total, value){
+	var spanHtml = '\n<span class="indice_b b_' + name + '">';	
+	var name_point = name;
+	if( (name=="total" && total > 20) || (name!="total" && total > 5)){
+		name_point += "_small";
+	}
+
+	for(var i=0; i<total; i++){
+		if(i<value){
+        	spanHtml += '\n  <span class="indice_v '+name_point+'"></span>'
+		}else{
+			spanHtml += '\n  <span class="indice_t '+name_point+'"></span>'
+		}
+	}
+    spanHtml += '\n</span>\n';
+	return spanHtml;
+        		
+}
+
+function getColorCode(level){
+	var level = (level-1)
+	if(level<1){
+		level=1;
+	}
+	level = Math.floor(100/level)+155;
+
+	var a=level.toString(16);
+	return "#"+a+a+a;
+}
+
+var words=[];
+
+
+function hideButtons(divId){
+	document.getElementById(divId).style.display="none";
+}
+
+function showButtons(divId){
+	document.getElementById(divId).style.display= (divId=="btndiv_3" || divId=="btndiv_4") ? "inline-block" : "inline-block";
+}
+
+function showStartButtonsByCondition(){
+	if(words==null || words.length <=0 ){
+		hideButtons("btndiv_3");
+	}else{
+		showButtons("btndiv_3");
+	}
+
+}
+
+function getSeparator(){
+	var radios = document.getElementsByName("separator");
+	for(var i=0; i<radios.length; i++){
+		if(radios[i].checked){
+			return radios[i].value;
+		}
+	}
+	return ",";
+}
+
+function load(){
+	var inputs = document.getElementById("input_words").value;
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	words = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split(getSeparator());
+		if(params.length==2){
+			words[i]={'word':params[0],'mean':params[1],'level':INIT_LEVEL};
+		}else if(params.length==3 && params[2]!=''){
+			words[i]={'word':params[0],'mean':params[1],'level':params[2]};
+		}
+	}
+	
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function save(){
+	var saveValues = "";
+	for(var i=0; i<words.length; i++){
+		saveValues += words[i].word+getSeparator()+words[i].mean+getSeparator()+words[i].level+"\n";
+	}
+	
+	document.getElementById("input_words").value = saveValues;
+}
+
+
+
+function getQuestionField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "mean" : "word";
+}
+
+function getAnswerField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "word" : "mean";
+}
+
+function getNext(list, ratio){
+	var i = randomRatio(list.length-1, ratio);
+	// return list.splice(i, 1)[0]; // ch
+	return list[i]; 
+}
+
+var startTime;
+function start(){
+	initLists();
+	startTime = Date.now();
+	nextWord();
+}
+
+function finish(){
+	var t = Math.floor((Date.now()-startTime)/1000)
+	alert("完成 !\n用时" + Math.floor(t/60) +"m"+ (t%60) +"s");
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showButtons("btndiv_3");
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	initLists();
+	affLists();
+	save();
+}
+
+var SELECTED_WORD_ID;
+crtWordBeginTime=0;
+function nextWord(){
+	var i = getNext(errorList, 3);
+	if(isValidWordId(i)){
+		SELECTED_WORD_ID = i;
+	}else{
+		toError(i);
+		SELECTED_WORD_ID = getNext(currentList, 2);
+	}
+
+	crtWordBeginTime=new Date().getTime();
+	showQuestion();
+
+	showButtons("btndiv_1");
+	showButtons("btndiv_2");
+	hideButtons("btndiv_3");
+	showButtons("btndiv_4");
+	// hideButtons("btndiv_5");
+
+
+	affLists();
+}
+
+function showQuestion(){
+	var field = getQuestionField();
+	var question = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(question);
+	}
+
+	document.getElementById("question").innerHTML = field=="word"? ('<span class="bigger">' + question + '</span>') : question;
+	document.getElementById("answer").innerHTML="";	
+	var crtDetail = getCrtDetail();
+	if(crtDetail != null){
+		document.getElementById("detail").innerHTML = crtDetail;
+		showButtons("btndiv_5");
+	}else{
+		hideButtons("btndiv_5");
+	}
+	hideDetail();
+}
+
+function getCrtDetail(){
+	var crtWd = words[SELECTED_WORD_ID];
+	if(crtWd.example != null){
+		return '<span class="small">' + crtWd.example + "<br>" + crtWd.exampleTrans + (crtWd.src == "不适用单词" ? "" : ("<br>" + crtWd.src)) + '</span>';
+	}else{
+		return null;
+	}
+}
+
+function hideDetail(){
+	document.getElementById("detail").style.display="none";
+}
+
+function showDetail(){
+	document.getElementById("detail").style.display="block";
+}
+
+function swichDetail(){
+	if(document.getElementById("detail").style.display=="none"){
+		showDetail();
+	}else{
+		hideDetail();
+	}
+}
+
+
+function showAnswer(){
+	var field = getAnswerField();
+	var answer = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(answer);
+	}
+	document.getElementById("answer").innerHTML = field=="word"? ('<span class="bigger">' + answer + '</span>') : answer;	
+}
+
+function readCurrentWord(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.word);
+	}
+}
+
+function readCurrentDetail(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.example);
+	}
+}
+
+function onRight(){
+	updateLevel(SELECTED_WORD_ID, true);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	crtWord.totalCorrectCt++;
+	crtWord.correctCt++;
+	crtWord.repeatErrCt = 0;
+
+	if(crtWord.totalCorrectCt >= MAX_CORRECT_TM || (crtStatut==STATUT_CRT && crtWord.correctCt>=NEED_CORRECT_TM)){
+		toFinished(SELECTED_WORD_ID);
+	}else if(crtStatut==STATUT_ERROR && crtWord.correctCt>=NEED_RECORRECT_TM){
+		toCurrent(SELECTED_WORD_ID)
+	}else{
+		if(crtStatut == STATUT_ERROR){
+			toError(SELECTED_WORD_ID);
+		}else{
+			toCurrent(SELECTED_WORD_ID);
+		}
+	}
+
+	if(errorList.length < ERROR_SIZE){
+		errorList.push(emptyWordId());
+	}
+
+	while(currentList.length + validWordIdCount(errorList) < MAX_CRT_SIZE && words.length >= MAX_CRT_SIZE){
+		if(waitingList.length>0){
+			var r = random(waitingList.length);
+			toCurrent(waitingList.splice(r, 1)[0]);
+		}else if(finishedList.length>0){
+			var r = random(finishedList.length);
+			toCurrent(finishedList.splice(r, 1)[0]);
+		}
+	}
+
+	if(isAllFinished()){
+		finish();
+	}else{
+		nextWord();
+	}
+
+}
+
+function onWrong(){
+	updateLevel(SELECTED_WORD_ID, false);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	
+	crtWord.repeatErrCt++;
+	if(crtStatut==STATUT_ERROR || crtWord.repeatErrCt>=MAX_REPEAT_ERROR){
+		toError(SELECTED_WORD_ID);
+	}else{
+		toCurrent(SELECTED_WORD_ID, ERROR_WAIT_LENGTH);
+	}
+
+
+
+	nextWord();
+}
+
+function validWordIdCount(list){
+	var cnt = 0;
+	for(i in list){
+		if(isValidWordId(list[i])){
+			cnt++;
+		}
+	}
+	return cnt;
+}
+
+function isAllFinished(){
+	var cnt = 0;
+	for(i in words){
+		if(words[i].statut == STATUT_FINISHED){
+			cnt++;
+		}
+	}
+	return cnt==words.length;
+}
+
+function updateLevel(idx, res){
+	if(!res){
+		words[idx].level=MAX_LEVEL;
+	}else{
+		var tm = new Date().getTime()-crtWordBeginTime
+		words[idx].level=Math.min(Math.floor((words[idx].level+tm/1000)/2), MAX_LEVEL);
+		
+	}
+}
+
+function initOptions(){
+	initOptionSelector("OPTION_MAX_CRT_SIZE", MAX_CRT_SIZE, 6, 20);
+	initOptionSelector("OPTION_ERROR_SIZE", ERROR_SIZE, 2, 6);
+	initOptionSelector("OPTION_MAX_CORRECT_TM", MAX_CORRECT_TM, 5, 40);
+	initOptionSelector("OPTION_NEED_CORRECT_TM", NEED_CORRECT_TM, 1, 10);
+	initOptionSelector("OPTION_MAX_REPEAT_ERROR", MAX_REPEAT_ERROR, 1, 5);
+	initOptionSelector("OPTION_NEED_RECORRECT_TM", NEED_RECORRECT_TM, 1, 10);
+}
+
+function initOptionSelector(elmId, param, minV, maxV){
+	var selector = document.getElementById(elmId);
+	for(var i=minV; i<=maxV; i++){
+		selector.add(new Option(i,i, false, i==param));
+	}
+}
+
+
+function changeOption(){
+	MAX_CRT_SIZE = document.getElementById("OPTION_MAX_CRT_SIZE").value;
+	ERROR_SIZE = document.getElementById("OPTION_ERROR_SIZE").value;
+	MAX_CORRECT_TM = document.getElementById("OPTION_MAX_CORRECT_TM").value;
+	NEED_CORRECT_TM = document.getElementById("OPTION_NEED_CORRECT_TM").value;
+	MAX_REPEAT_ERROR = document.getElementById("OPTION_MAX_REPEAT_ERROR").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	SHOW_LIST = document.getElementById("OPTION_SHOW_LIST").checked;
+	affLists();	
+}
+
+// keyboard
+function handleShortcut(event) { 
+    if (event.key === "ArrowLeft") { 
+        onRight();
+        event.preventDefault(); 
+        // Votre action à effectuer lorsque la touche est enfoncée 
+    }else if(event.key === "ArrowRight"){
+        onWrong();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowUp"){
+        readCurrentWord();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowDown"){
+        showAnswer();
+        event.preventDefault(); 
+    }else if(event.key === "l"){
+        swichDetail();
+        event.preventDefault(); 
+    }else if(event.key === "o"){
+        readCurrentDetail();
+        event.preventDefault(); 
+    }
+} 
+document.addEventListener("keydown", handleShortcut);
+
+
+
+// voice reader
+
+var reader_init_count = 0;
+var reader_voices;
+function waitInit(){
+	var success = false;
+	try {
+		if(window.speechSynthesis.getVoices().length>0){
+			reader_voices = window.speechSynthesis.getVoices();
+
+			initSelector("fr-FR");
+			// initSelector("zh-CN");
+			// initSelector("zh-TW");
+			success = true;
+		}
+	} catch (error) {console.error(error);}
+
+	if(success){
+		return;
+	}else if(!success && reader_init_count++<5){
+		setTimeout(waitInit,100);
+	}
+}
+
+
+function initSelector(lang){
+	var selector = document.getElementById("lang_"+lang);
+	for(i=0; i<reader_voices.length; i++){
+		if(reader_voices[i].lang==lang){
+			var option_i = new Option(reader_voices[i].name,i, false, reader_voices[i].name.includes("Google"));
+			selector.add(option_i);
+		}
+	}
+}
+
+
+function getVoice(v){
+	return reader_voices[v];
+}
+
+function speak(txt, voice){
+	try{
+		var speech = new SpeechSynthesisUtterance();
+		speech.voice = voice;
+		speech.text = txt;
+		window.speechSynthesis.speak(speech);
+	}catch (error) {}
+}
+
+function read(id, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(document.getElementById(id).value, getVoice(lang));
+}
+
+function readText(txt, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(txt, getVoice(lang));
+}
+
+
+function readWord(wd){
+	if(needRead() && reader_voices != null){
+		readText(wd, "fr-FR")
+	}
+
+}
+
+function needRead(){
+	return document.getElementById("read_option").checked;
+}
+
+function changeReadOption(){
+	document.getElementById("readCrtWdBt").disabled = !document.getElementById("read_option").checked;
+}
+
+
+var lessonsList = [];
+function loadTxt(inputs){
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	var lesson = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split("\t");
+		if(params.length==2){
+			lesson.push({'word':params[0],'mean':params[1],'level':INIT_LEVEL});
+		}else if(params.length==3 && params[2]!=''){
+			lesson.push({'word':params[0],'mean':params[1],'level':params[2]});
+		}else if(params.length==5){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4]})
+		}else if(params.length==6){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4],'src':params[5]})
+		}
+
+		if(lesson.length==42){
+			lessonsList.push(lesson);
+			lesson = new Array();
+		}
+	}
+	if(lesson.length != 0){
+		lessonsList.push(lesson);
+	}
+
+	var selector = document.getElementById("lessons");
+	for(var i=0; i<lessonsList.length; i++){
+		var option = document.createElement("option");
+		option.text = i+1;
+		selector.add(option);
+	}
+}
+
+function loadLesson(){
+	var selector = document.getElementById("lessons");
+	if(selector.value != null){
+		words = lessonsList[selector.value-1];
+		save();
+	}
+
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function nw(w, m){
+	return {'word':w,'mean':m,'level':INIT_LEVEL};
+}
+
+
+setTimeout(waitInit,100);
+
+</script>
+
+<style type="text/css">
+@media only screen and (max-width: 600px) {
+*{
+    font-family: sans-serif;
+	font-size: 30px;
+}
+
+.option_title {
+    width: 50% !important;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+#aff{
+	position: initial !important;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+
+#exe{
+	height: 900px !important;
+	position: relative;
+	width: 570px;
+}
+
+#question, #answer{
+	font-size: 40px !important;	
+	padding-top: 10px;
+	height: 200px !important;	
+}
+
+#question{
+	text-align: left;
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 7px !important;
+    padding: 5px;
+    margin: 50px 20px 0 20px !important;
+    width: 85%	 !important;
+}
+
+#detail, #detail *{
+    font-size: 15px !important;
+}
+
+.bigger{
+	font-size: 50px !important;	
+	font-weight: bold;
+}	
+
+
+#btndiv_1 button, #btndiv_2 button, #btndiv_5 button{
+	height: 100px !important;
+	width: 135px;
+	font-size: 35px !important;	
+	bottom: 10px;
+}
+
+#btndiv_1 , #btndiv_2, #btndiv_5{
+	position: absolute !important;
+	bottom: 10px;
+	width: 280px;
+}
+
+#btndiv_1 {
+	left:10px;
+	bottom:120px;
+
+}
+
+#btndiv_2 {
+	left:10px;
+}
+
+#btndiv_5 {
+	left:10px;
+	bottom:240px;
+}
+
+#input_words{
+	font-size: 25px !important;
+}
+
+}
+
+
+body{
+    font-family: sans-serif;
+}
+
+.buttons button{
+	padding:5px; 
+	margin:5px;
+	font-size: 8px;
+}
+#word{
+	font-size: 20px;
+}
+#input_words{
+	width:550px;
+	height:200px;
+	font-family: sans-serif;
+}
+#aff{
+	position: absolute;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+.list_aff{
+    min-width: 150px;
+    padding: 5px;
+    display: inline-block;	
+	vertical-align: top
+}
+
+.affword, .affword_null{
+	font-size: 12px;
+	border: 1px solid green;
+	margin: 2px 0px;
+	padding: 1px;
+    display:block;
+}
+
+.crtword{
+	border: 1px solid red !important;
+	font-weight:bold;
+}
+
+.finishedword{
+	color:#712a2a;
+	font-weight:bold;
+}
+
+
+.indice_b{
+	display: inline-block;
+    background-color: #bbbb88;
+    width: 6px;
+    float: inline-end;
+    padding: 0px 1px 1px 0px;
+    margin-left : 3px;
+}
+
+.indice_v, .indice_t{
+	display: inline-block;
+    margin: 1px 1px 0px 1px;
+    width: 5px;
+    height: 2px;
+    vertical-align: top;
+    float: inline-start;
+}
+
+.indice_t{
+	opacity:0.2;
+}
+
+.error, .error_small{
+	background-color:red;
+}
+
+.correct, .correct_small{
+	background-color:green;
+}
+
+.recorect, .recorect_small{
+	background-color:blue;
+}
+
+
+.error_small, .correct_small, .recorect_small{
+    height: 1px;
+    margin-top: 0.5px;
+}
+
+.b_total{
+	width:12px;
+}
+
+.total{
+    background-color: green;
+    width:2px;
+    margin: 1px 0px 0px 1px;
+}
+
+.total_small{
+    background-color: green;
+    width:1px;
+    margin: 0.2px 0px 0px 1px;
+}
+
+#question, #answer{
+	font-size: 25px;	
+	height: 60px;
+	padding-left:5px;
+	height: 60px;
+	padding-left:5px;
+}
+
+#question{
+	color: #bb4110;	
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 10px;
+    padding: 5px;
+    margin: 20px 0 0 20px;
+    width: 550px;
+}
+
+#answer{
+	color: #174917;	
+}
+
+
+.block{
+	margin: 20px 5px;
+	padding: 5px;
+	width: 600px;
+	border: 1px solid black;
+}
+
+.div_sep{
+	border-bottom: 1px solid black;
+	margin: 10px;
+}
+
+.option_title{
+	width: 150px;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+
+</style>
+<title>单词训练</title>
+</head>
+<body onkeypress="onKey(event)">
+
+<div>
+
+	<div class="block" id="exe">
+		<div id="detail"></div>
+		<div id="question"></div>
+		<div id="answer"></div>
+
+
+		<span id="btndiv_1" style="display: none;">
+			<button onclick="onRight();">正确←</button>
+			<button onclick="onWrong();">错误→</button>
+		</span>
+		&nbsp;&nbsp;
+		<span id="btndiv_2" style="display: none;">
+			<button onclick="showAnswer();">答案↓</button>
+			<button onclick="readCurrentWord();" id="readCrtWdBt">读音↑</button>
+		</span>
+		<span id="btndiv_5" style="display: none;">		
+			<button onclick="swichDetail();" id="detailCrtWdBt">详情L</button>
+			<button onclick="readCurrentDetail();" id="readDetailCrtWdBt">读例O</button>
+		</span>
+		
+	</div>
+	
+
+	<div class="block">
+		方向 : 
+		<input type="radio" name="direction" value="0" checked="">法 - 汉
+		&nbsp;&nbsp;
+		<input type="radio" name="direction" value="1" id="direction_inverse">汉 - 法
+		&nbsp;&nbsp;&nbsp;
+		<span id="btndiv_3" style="display: none;">
+			<button id="b_32" onclick="start();">开始</button>
+		</span>
+		<span id="btndiv_4" style="display: none;">
+			<button id="b_32" onclick="finish();">结束</button>
+		</span>
+	</div>
+
+	<div class="block">
+		<div id="lists"></div>
+		<textarea id="input_words"></textarea>
+		<br>
+		<button onclick="load();">导入单词</button>
+		<button onclick="save();">导出单词</button>
+		分隔符 : <input type="radio" name="separator" value=";" checked=""> <b>;</b>
+		&nbsp; &nbsp;
+		<input type="radio" name="separator" value=","> <b>,</b>
+	</div>
+	<div class="block">
+		<select id="lessons"></select> <button onclick="loadLesson();">导入课程</button>
+	</div>
+	
+	<div class="block">
+		<div>
+			<button onclick="waitInit()">初始化语音引擎</button>&nbsp; &nbsp;
+			法语引擎 : <select id="lang_fr-FR"><option value="0">Microsoft Hortense - French (France)</option><option value="1">Microsoft Julie - French (France)</option><option value="2">Microsoft Paul - French (France)</option><option value="9">Google français</option></select>
+		</div>
+
+		<div>
+			开启单词朗读功能<input type="checkbox" id="read_option" checked="" onchange="changeReadOption()">&nbsp; &nbsp;
+			测试文字<input type="text" id="word_fr" value="banana"><button onclick="read(&#39;word_fr&#39;, &#39;fr-FR&#39;)"> 试读 </button>
+		</div>
+	</div>
+	
+
+	<div class="block">
+		<div class="div_sep">选项 : </div>
+		<div><span class="option_title">当前列表长度 : </span><select id="OPTION_MAX_CRT_SIZE" onchange="changeOption()"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select></div>
+		<div><span class="option_title">错误列表长度 : </span><select id="OPTION_ERROR_SIZE" onchange="changeOption()"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大总正确次数 : </span><select id="OPTION_MAX_CORRECT_TM" onchange="changeOption()"><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option></select></div>
+		<div><span class="option_title">所需正确次数 : </span><select id="OPTION_NEED_CORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大重复错误次数 : </span><select id="OPTION_MAX_REPEAT_ERROR" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+		<div><span class="option_title">所需更正次数 : </span><select id="OPTION_NEED_RECORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">显示列表信息 : </span><input type="checkbox" id="OPTION_SHOW_LIST" checked="" onchange="changeOption()"></div>
+	</div>
+
+
+	<div id="aff" style="display: block;">
+		<div id="waiting_div" class="list_aff"></div>
+		<div id="current_div" class="list_aff"></div>
+		<div id="error_div" class="list_aff"><div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+</div>
+		<div id="finished_div" class="list_aff"></div>
+
+	</div>
+
+	<div id="testarea">1920</div>
+
+
+
+</div>
+<script type="text/javascript">
+	initLists();
+	affLists();	
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showStartButtonsByCondition();
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	hideDetail();
+
+	initOptions();
+	loadTxt("mine de rien	loc.	居然/不显山露水	mine de rien, il a fini ce dossier en une heure.	别看他不动声色的，一小时就把这份文件处理完了。	根： mina (表情/威胁) + res (物)。同源： Mine (面色/矿山), Rien (虚无)。\ns'avérer	v.	结果证明是	leur théorie s'est avérée totalement fausse.	他们的理论结果证明是完全错误的。	根： ad- + verus (真实)。同源： Vérité (真理), Vérifier (核实)。\nparadoxalement	adv.	矛盾的是	paradoxalement, l'excès de choix paralyse l'action.	矛盾的是，过多的选择反而会让行动瘫痪。	根： para (相反) + doxa (观点)。同源： Paradoxe (悖论), Orthodoxe (正统的)。\nn'empêche que	loc.	但不可否认的是	c'est risqué, n'empêche que ça en vaut la peine.	这很冒险，但不可否认的是它值得一试。	根： in- + pedica (脚镣)。同源： Empêcher (阻止), Piège (陷阱), Pédicelle (花梗/小柄)。\nmitigé	adj.	喜忧参半/保留的	la critique a donné un avis très mitigé.	评论界的意见非常保守（喜忧参半）。	根： mitis (温和) + agere (驱动)。同源： Mitiger (缓和), Mièvre (柔弱的/庸俗的)。\npréconiser	v.	提倡/主张	le médecin préconise un repos total.	医生主张完全静养。	根： praeco (喊口号者/公共传令官)。同源： Cri (喊叫), Préconisation (主张/建议)。\nnéanmoins	adv.	尽管如此	il fait froid ; néanmoins, nous sortons.	天很冷；尽管如此，我们还是出门了。	根： neant (无) + moins (少)。同源： Néant (虚无), Moindre (更小的)。\nquitte à	loc.	即使/不惜/哪怕	je vais essayer, quitte à échouer.	我会尝试，哪怕会失败。	根： quietus (平静/清偿)。同源： Quitter (离开), Quittance (收据/结清)。\nlégitime	adj.	合情合理的	sa colère est tout à fait légitime.	他的愤怒是完全合情合理的。	根： lex (法律)。同源： Loi (法律), Légiférer (立法), Loyal (忠诚的)。\nainsi	adv.	因此/从而	il a menti, perdant ainsi notre confiance.	他撒了谎，从而失去了我们的信任。	根： in + sic (如此)。同源： Si (如此/如果)。\nen l'occurrence	loc.	在这种情况下	en l'occurrence, la règle ne s'applique pas.	在这种情况下，该规则并不适用。	根： ob- + currere (跑/发生)。同源： Occasion (时机), Courir (跑)。\ncertes	adv.	诚然/的确	certes, c'est beau, mais c'est trop cher.	的确，它很漂亮，但是太贵了。	根： certus (确定的)。同源： Certain (确定的), Certifier (证明)。\nd'autant plus que	loc.	况且/尤其是因为	je suis fatigué, d'autant plus qu'il est tard.	我累了，尤其是因为已经这么晚了。	根： aliud (其他) + tantus (如此大)。同源： Autant (同样多), Plus (更多)。\ntoutefois	adv.	然而/不过	l'idée est bonne, toutefois elle est incomplète.	想法很好，不过还不完整。	根： totus (全部) + vices (次数)。同源： Tout (全部), Fois (次数)。\nà la limite	loc.	实在不行的话	à la limite, on peut annuler le rendez-vous.	实在不行的话，我们可以取消预约。	根： limes (小路/边界)。同源： Limiter (限制), Liminaire (初步的/开端的)。\ncarrément	adv.	完全地/干脆地	c'est carrément impossible.	这简直完全不可能。	根： quadrus (方形)。同源： Carré (正方形), Cadre (框架)。\nsous-entendre	v.	暗示/含沙射影	que voulez-vous sous-entendre par là ?	您这话想暗示什么？	根： sub- + intendere (伸向/听)。同源： Entendre (听/理解), Entente (协议)。\nambigu	adj.	模棱两可的	son message est très ambigu.	他的信息非常模棱两可。	根： ambi- (两者/周围) + agere (驱动)。同源： Ambivalence (矛盾心理), Ambition (雄心)。\nnuancer	v.	使多样化/稍作调整	il faut nuancer ce jugement trop sévère.	对这种过于严苛的评价需要稍作调整。	根： nubes (云)。同源： Nue (云/云霄), Nuage (云)。\npertinent	adj.	相关的/中肯的	votre analyse est très pertinente.	您的分析非常中肯且相关。	根： per- (完全) + tenere (持有/保持)。同源： Appartenir (属于), Tenir (持有)。\nfondamentalement	adv.	根本上地	ils sont fondamentalement différents.	他们从根本上就是不同的。	根： fundus (底)。同源： Fond (底部), Fondateur (创始人)。\npersuader	v.	说服/使确信	j'ai réussi à la persuader de partir.	我成功说服了她离开。	根： per- + suadere (劝说/使甜)。同源： Suasif (劝说的), Suave (甜美的/温和的)。\npercevoir	v.	察觉/感知	on peut percevoir un changement d'ambiance.	我们可以察觉到气氛的变化。	根： per- + capere (抓取)。同源： Perception (感知), Capturer (捕捉)。\ndéceler	v.	发现/侦测到	le scanner a pu déceler une anomalie.	扫描仪检测到了一处异常。	根： de- + celare (隐藏)。同源： Celer (隐藏), Receler (窝藏), Cellule (小房间)。\ncontester	v.	质疑/反对	personne n'ose contester son autorité.	没人敢质疑他的权威。	根： contra + testari (作证)。同源： Témoin (证人), Test (测试)。\nsubjectif	adj.	主观的	la beauté est un critère subjectif.	美是一个主观的标准。	根： sub- (在下) + jacere (投掷)。同源： Sujet (主题/臣民), Jet (喷射)。\npréjugé	n.m.	偏见	les préjugés sont difficiles à déraciner.	偏见很难根除。	根： prae- + judicare (判断)。同源： Juge (法官), Jugement (判断)。\naltruisme	n.m.	利他主义	il agit par pur altruisme.	他的行为完全出于利他主义。	根： alter (另一个)。同源： Autrui (他人), Altérer (改变/损害)。\ndéterminant	adj.	决定性的	ce but fut déterminant pour la victoire.	这个进球对胜利起到了决定性作用。	根： de- + terminus (界限)。同源： Terminer (结束), Terme (期限)。\nenvisager	v.	考虑/设想	nous envisageons toutes les options.	我们正在考虑所有的选项。	根： in- + visus (脸/看)。同源： Visage (脸), Vision (视觉)。\nréticent	adj.	犹豫的/反感的	il reste réticent face à cette proposition.	他对这个提议仍持迟疑态度。	根： re- + ticere (沉默)。同源： Tacite (心照不宣的/默示的), Taciturne (沉默寡言的)。\nfustiger	v.	严厉抨击	l'éditorial fustige l'inaction politique.	社论严厉抨击了政治上的不作为。	根： fustis (棍棒)。同源： Fût (桶身/树干), Fustigation (鞭笞)。\nsouligner	v.	强调	le rapport souligne l'urgence climatique.	报告强调了气候问题的紧迫性。	根： sub- + linea (线条)。同源： Ligne (线), Lin (亚麻)。\nestimer	v.	估计/认为	on estime les dégâts à un million d'euros.	据估计损失达一百万欧元。	根： aestimare (评价/价值)。同源： Estime (尊重), Estimation (评估)。\nprétendre	v.	声称/断言	il prétend avoir tout vu.	他自称看到了全过程。	根： prae- + tendere (伸出)。同源： Prétention (自负/要求), Tendre (伸出)。\nexplicite	adj.	明确的	ses ordres étaient très explicites.	他的命令非常明确。	根： ex- + plicare (折叠)。同源： Expliquer (解释), Pli (折痕)。\nimplicite	adj.	隐晦的/内含的	c'était un accord implicite.	这是一个默契的协议。	根： in- + plicare (折叠)。同源： Impliquer (牵连), Complice (帮凶)。\nsusciter	v.	引起/激起	son départ a suscité de l'émotion.	他的离开引起了轰动。	根： sub- + citare (唤起/驱动)。同源： Citer (引用), Exciter (激发)。\naboutir à	v.	导致/最终达成	cela pourrait aboutir à un échec.	这可能会导致失败。	根： a- + bout (末端)。同源： Bout (末端), Bouton (按钮/芽)。\nconsidérer	v.	认为/考虑到	je considère cela comme une insulte.	我把这视作一种侮辱。	根： cum + sideris (星星/占星观察)。同源： Sidéral (恒星的), Désirer (欲望/原意星象不佳)。\ninfluencer	v.	影响	la météo influence notre moral.	天气影响我们的心情。	根： in- + fluere (流)。同源： Influence (影响), Flux (流量)。\nperplexe	adj.	困惑的	son silence me laisse perplexe.	他的沉默让我感到困惑。	根： per- + plectere (交织/缠绕)。同源： Complexe (复杂的), Plier (折叠)。\nconvaincant	adj.	有说服力的	cet argument n'est pas convaincant.	这个论据没有说服力。	根： cum + vincere (战胜)。同源： Vaincre (战胜), Victoire (胜利)。\nprévaloir	v.	占优势/流行	la raison finit toujours par prévaloir.	理性最终总会占据上风。	根： prae- + valere (强壮/价值)。同源： Valeur (价值), Valide (有效的)。\nrevendiquer	v.	要求/声称拥有	ils revendiquent leur indépendance.	他们要求独立。	根： res (物) + vindicare (声张/复仇)。同源： Vengeance (报复), Vindicatif (报复性的)。\nanticiper	v.	预测/预见	il faut anticiper les risques.	必须预见风险。	根： ante- + capere (抓取)。同源： Avant (之前), Capacité (容量)。\nassimiler	v.	吸收/同化	il a vite assimilé les règles.	他很快就掌握了规则。	根： ad- + similis (相似)。同源： Similaire (相似的), Ressembler (像)。\ncompromis	n.m.	妥协/折中	nous avons fait un compromis.	我们达成了一个折中方案。	根： cum + promittere (承诺)。同源： Promesse (承诺), Mission (使命)。\ndénoncer	v.	揭发/抨击	il a dénoncé les abus de pouvoir.	他揭发了滥用权力的行为。	根： de- + nuntiare (宣布)。同源： Annoncer (宣布), Messager (信使)。\nadhérer à	v.	赞同/加入	je n'adhère pas à cette idéologie.	我不赞同这种意识形态。	根： ad- + haerere (粘着)。同源： Adhésif (粘合剂), Cohérent (连贯的)。\ndériver	v.	衍生于/漂流	ce mot dérive du latin.	这个词源自拉丁语。	根： de- + rivus (小溪)。同源： Rive (岸), Rivage (沿岸)。\nconcrétiser	v.	使具体化	nous voulons concrétiser ce projet.	我们希望落实这个项目。	根： cum + crescere (生长/凝聚)。同源： Concret (具体的), Croître (生长)。\ndivergent	adj.	分歧的	ils ont des avis divergents.	他们有分歧意见。	根： di- + vergere (转向)。同源： Diverger (分歧), Converger (会聚)。\nconvergence	n.f.	趋同/汇聚	une convergence de vues est possible.	观点的趋同是可能的。	根： cum + vergere (转向)。同源： Verge (杆/权标)。\nspécifier	v.	特定/详述	veuillez spécifier vos besoins.	请详述您的需求。	根： species (外观/种类) + facere (做)。同源： Espèce (物种), Épice (香料/原意种类)。\nnotoire	adj.	众所周知的	c'est un menteur notoire.	他是个臭名昭著的骗子。	根： notus (已知的)。同源： Noter (记录), Notion (概念)。\nfortuit	adj.	偶然的	leur rencontre était purement fortuite.	他们的相遇纯属偶然。	根： fors (运气/机会)。同源： Fortune (财富/运气), Fortuitement (偶然地)。\ndélibéré	adj.	故意的	c'est un acte délibéré.	这是一个蓄意的行为。	根： de- + librare (秤重/衡量)。同源： Libre (自由), Équilibre (平衡)。\nprématuré	adj.	不成熟的/过早的	son départ est prématuré.	他的离开还为时过早。	根： prae- + maturus (成熟)。同源： Mûr (成熟的), Maturité (成熟度)。\ndéconcertant	adj.	令人不安的/困惑的	sa réaction est déconcertante.	他的反应令人感到困惑。	根： de- + concertare (协力/协奏)。同源： Concert (音乐会), Concerter (商议)。\nobstination	n.f.	固执	son obstination finira par lui nuire.	他的固执最终会害了他自己。	根： ob- + stare (站立)。同源： Obstacle (障碍), Station (车站)。\naltérer	v.	改变/损坏	l'humidité peut altérer le papier.	潮湿会损坏纸张。	根： alter (另一个)。同源： Autre (另一个), Altération (改变/损坏)。\namplifier	v.	放大/加强	le bruit amplifie mon mal de tête.	噪音加剧了我的头痛。	根： amplus (宽大)。同源： Ample (宽大的), Ampleur (规模)。\natténuer	v.	减轻/缓和	ce médicament atténue la douleur.	这种药能缓解疼痛。	根： ad- + tenuis (细/薄)。同源： Ténu (细微的), Exténuer (使筋疲力尽)。\nprovoquer	v.	引起/挑衅	son attitude peut provoquer des conflits.	他的态度可能会引起冲突。	根： pro- + vocare (呼喊)。同源： Voix (声音), Avocat (律师)。\ndéclencher	v.	触发	cela a déclenché une crise.	这触发了一场危机。	根： de- + clenche (门闩)。同源： Clenche (把手), Enclencher (使啮合)。\ninciter à	v.	激励/诱导	on nous incite à consommer moins.	我们被鼓励减少消费。	根： in- + citare (驱动/唤起)。同源： Excitation (激发), Réciter (背诵)。\ndissuader de	v.	劝阻	rien ne pourra le dissuader de partir.	没什么能劝阻他离开。	根： dis- + suadere (劝说)。同源： Persuader (说服), Suasif (劝说的)。\npréjuger	v.	预判	ne préjugez pas de ses intentions.	不要预判他的意图。	根： prae- + judicare (判断)。同源： Préjudiciable (有害的), Juge (法官)。\nconsécutif	adj.	连续的/接连的	il a plu trois jours consécutifs.	连续下了三天雨。	根： cum + sequi (跟随)。同源： Suivre (跟随), Séquence (序列)。\ninhérent	adj.	固有的/内在的	le risque est inhérent à l'aventure.	风险是冒险所固有的。	根： in- + haerere (粘着)。同源： Cohérent (连贯的), Adhérer (坚持)。\nintrinsèque	adj.	本质的	la valeur intrinsèque d'un objet.	一个物体的内在价值。	根： intrinsecus (在内部)。同源： Intérieur (内部的)。\nextrinsèque	adj.	外在的	des facteurs extrinsèques au problème.	与问题本身无关的外在因素。	根： extrinsecus (在外部)。同源： Extérieur (外部的)。\nrévolu	adj.	过去的/终结的	cette époque est désormais révolue.	那个时代已经终结了。	根： re- + volvere (滚动/旋转)。同源： Révolution (革命), Volume (卷/体积)。\néphémère	adj.	短暂的	une gloire éphémère.	昙花一现的荣誉。	根： epi (在...上) + hemera (天)。同源： Éphéméride (历书/记事簿)。\npérenne	adj.	长久的	nous cherchons une solution pérenne.	我们在寻求一个长期的解决方案。	根： per (经过) + annus (年)。同源： An (年), Annuel (年度的)。\nexhaustif	adj.	详尽的/无遗漏的	la liste n'est pas exhaustive.	列表并未涵盖所有内容。	根： ex- + haurire (抽干)。同源： Épuiser (耗尽)。\nsommaire	adj.	简略的/草率的	un rapport très sommaire.	一份非常简略的报告。	根： summa (总和/摘要)。同源： Somme (总数), Sommet (顶点)。\nsuperficiel	adj.	表面的	un examen superficiel.	一次粗浅的检查。	根： super (在上面) + facies (脸/面)。同源： Surface (表面), Face (脸)。\napprofondi	adj.	深入的	une étude approfondie du marché.	一项深入的市场研究。	根： ad- + profundus (深的)。同源： Profond (深的), Profondeur (深度)。\nanalogue	adj.	相似的	une situation analogue à la nôtre.	与我们相似的情况。	根： ana (按照) + logos (比例/言语)。同源： Analogie (类比), Logique (逻辑)。\ndistinct	adj.	明显的/不同的	deux problèmes bien distincts.	两个截然不同的问题。	根： di- + stinguere (刺/标记)。同源： Distinguer (区分), Instinct (本能/原意刺)。\néquivoque	adj.	含糊的	une réponse sans équivoque.	一个毫不含糊的回答。	根： aequus (平等) + vox (声音)。同源： Égal (平等的), Voix (声音)。\nimpartial	adj.	公正的	un juge doit rester impartial.	法官必须保持公正。	根： in- + pars (部分)。同源： Partie (部分), Partager (分享)。\narbitraire	adj.	武断的/专横的	une décision arbitraire.	一个武断的决定。	根： arbiter (裁判/见证人)。同源： Arbitre (裁判), Arbitrer (仲裁)。\nrationnel	adj.	理性的	un comportement peu rationnel.	不太理性的行为。	根： ratio (计算/理性)。同源： Raison (理智/原因), Ration (定额)。\nirrationnel	adj.	非理性的	une peur irrationnelle.	一种非理性的恐惧。	根： in- + ratio。同源： Raisonnable (合理的)。\nplausible	adj.	似乎合理的	son explication est plausible.	他的解释似乎是合理的。	根： plaudere (拍手/赞赏)。同源： Applaudir (鼓掌), Applaudissement (掌声)。\ninvraisemblable	adj.	不太可能的	une histoire invraisemblable.	一个令人难以置信的故事。	根： in- + verus (真) + similis (像)。同源： Vérité (真理), Ressembler (像)。\ncohérent	adj.	连贯的/一致的	un discours cohérent.	一个条理清晰的演讲。	根： cum + haerere (粘着)。同源： Cohésion (凝聚力)。\ncontradictoire	adj.	矛盾的	des témoignages contradictoires.	矛盾的证词。	根： contra + dicere (说)。同源： Contredire (反驳), Dire (说)。\nrigoureux	adj.	严谨的	un travail rigoureux.	一项严谨的工作。	根： rigere (僵硬)。同源： Rigide (硬的), Rigueur (严厉)。\napproximatif	adj.	大约的/不准的	un calcul approximatif.	一个粗略的计算。	根： ad- + proximus (最近)。同源： Proche (接近的), Proximité (接近)。\nconcomitant	adj.	伴随的	des symptômes concomitants.	伴随症状。	根： cum + comes (同伴)。同源： Comte (伯爵/原意同伴), Comité (委员会)。\nrécurrent	adj.	反复出现的	un problème récurrent.	一个反复出现的问题。	根： re- + currere (跑)。同源： Recourir (求助于), Courant (流动的)。\nsporadique	adj.	零星的	des tirs sporadiques.	零星的枪声。	根： sporos (种子)。同源： Spore (孢子), Sperme (精子)。\nnotable	adj.	显著的	une amélioration notable.	显著的改善。	根： notare (标记)。同源： Note (笔记), Notoriété (名声)。\ninsignifiant	adj.	微不足道的	un détail insignifiant.	一个微不足道的细节。	根： in- + signum (标记)。同源： Signe (迹象), Signifier (意味着)。\nprédominance	n.f.	优势/占多数	la prédominance du secteur privé.	私营部门的主导地位。	根： prae- + dominus (主人)。同源： Dominer (统治), Dimanche (主日)。\nmarginal	adj.	边缘的/微小的	un effet marginal.	微小的影响。	根： margo (边缘)。同源： Marge (页边空白), Marginaliser (排斥)。\ncrucial	adj.	关键的	un moment crucial.	关键时刻。	根： crux (十字架)。同源： Croix (十字), Croiser (相交)。\naccessoire	adj.	辅助的/次要的	un point accessoire.	次要的一点。	根： ad- + cedere (走向/让步)。同源： Accès (进入), Céder (让步)。\nfondé	adj.	有根据的	une crainte bien fondée.	有根据的担忧。	根： fundus (底)。同源： Fondement (基础), Fonder (建立)。\ninfondé	adj.	无根据的	des rumeurs infondées.	毫无根据的传闻。	根： in- + fundus。同源： Effondrer (坍塌)。\nfallacieux	adj.	骗人的/谬误的	un argument fallacieux.	一个谬误的论据。	根： fallere (欺骗/倒下)。同源： Faillir (差点/出错), Faux (假的)。\nvéridique	adj.	真实的	un récit véridique.	一个真实的故事。	根： verus (真) + dicere (说)。同源： Vérité (真理), Dire (说)。\nimmuable	adj.	不变的	des lois immuables.	永恒不变的法则。	根： in- + mutare (改变)。同源： Muer (蜕皮/变声), Mutant (变种)。\nprévisible	adj.	可预见的	un résultat prévisible.	一个可以预见的结果。	根： prae- + videre (看)。同源： Prévoir (预见), Vision (视觉)。\nimprévisible	adj.	不可预测的	son humeur est imprévisible.	他的情绪反复无常。	根： in- + prae- + videre。同源： Visuel (视觉的)。\ninéluctable	adj.	不可避免的	un déclin inéluctable.	不可避免的衰落。	根： in- + ex- + luctari (挣扎/摔跤)。同源： Lutte (战斗), Lutteur (摔跤手)。\naléatoire	adj.	随机的	un choix aléatoire.	一个随机的选择。	根： alea (骰子/赌博)。同源： Aléa (风险/不确定性)。\ndéterminisme	n.m.	决定论	le déterminisme social.	社会决定论。	根： de- + terminus (界限)。同源： Déterminer (决定)。\nambivalence	n.f.	矛盾心理	l'ambivalence de ses sentiments.	他情感中的矛盾心理。	根： ambi- (双) + valentia (力量)。同源： Valeur (价值), Ambivalent (矛盾的)。\néquivalent	adj.	等同的	un diplôme équivalent.	同等学历。	根： aequus (平) + valere (价值)。同源： Égalité (平等), Équivaloir (相当于)。\ndisparité	n.f.	差异	la disparité des revenus.	收入差距。	根： dis- + par (对等)。同源： Parité (对等/平价), Pair (偶数的/同辈)。\nhomogène	adj.	同质的	un groupe homogène.	一个同质的群体。	根： homos (同) + genos (种类)。同源： Homologue (对应物), Genre (类型)。\nhétérogène	adj.	异质的	une population hétérogène.	异质的人口。	根： heteros (异) + genos。同源： Hétérodoxe (异端的)。\nstéréotype	n.m.	刻板印象	briser les stéréotypes.	打破刻板印象。	根： stereos (坚固/立体) + typos (印痕)。同源： Type (类型), Stéréo (立体声)。\nstigmatiser	v.	污名化	il ne faut pas stigmatiser les échecs.	不应该污名化失败。	根： stigma (烙印/标记)。同源： Stigmate (污点/烙印)。\némancipation	n.f.	解放/自主	l'émancipation des femmes.	女性解放。	根： ex- + manus (手) + capere (抓)。同源： Main (手), Captif (俘虏)。\naliénation	n.f.	疏远/异化	l'aliénation par le travail.	劳动的异化。	根： alienus (他人的)。同源： Aliéner (疏远/转让), Alien (外星人/他人)。\nconscience	n.f.	意识	prendre conscience de l'enjeu.	意识到问题的关键。	根： cum + scire (知道)。同源： Savoir (知道), Science (科学)。\ninconscient	adj./n.	无意识的	un désir inconscient.	一个潜意识的愿望。	根： in- + cum + scire。同源： Omniscient (全知的)。\nintrospection	n.f.	自省	un travail d'introspection.	一次自省的工作。	根： intro- + specere (看)。同源： Inspecter (视察), Spectacle (演出)。\nempathie	n.f.	共情	faire preuve d'empathie.	表现出共情心。	根： en- + pathos (感受/情感)。同源： Pathétique (可悲的), Pathologie (病理学)。\nsympathie	n.f.	同情/好感	j'ai de la sympathie pour lui.	我对他表示同情。	根： syn- (同) + pathos。同源： Sympathique (讨人喜欢的)。\nantipathie	n.f.	厌恶	une forte antipathie.	强烈的厌恶。	根： anti- (反) + pathos。同源： Antipathique (令人厌恶的)。\nanimosité	n.f.	敌意	agir sans animosité.	毫无敌意地行动。	根： animus (灵魂/愤怒)。同源： Animal (动物), Âme (灵魂)。\nbienveillance	n.f.	友善/关怀	écouter avec bienveillance.	带着善意倾听。	根： bene (好) + volere (想要)。同源： Vouloir (想要), Bénévole (志愿者)。\nhostilité	n.f.	敌对	faire face à l'hostilité.	面对敌意。	根： hostis (敌人)。同源： Hostile (敌对的), Otage (人质/原意客人)。\nindulgence	n.f.	宽容	demander l'indulgence.	请求宽大处理。	根： in- + dulcis (甜/柔和)。同源： Doux (甜的/温和的), Dulcinée (情妇/心上人)。\naustérité	n.f.	严厉/紧缩	une politique d'austérité.	紧缩政策。	根： austeros (严厉)。同源： Austère (简朴的)。\nclémence	n.f.	仁慈	implorer la clémence.	恳求仁慈。	根： clemens (温和)。同源： Clément (仁慈的), Inclément (恶劣的/严酷的)。\nrigueur	n.f.	严谨/严厉	travailler avec rigueur.	严谨地工作。	根： rigere (僵硬)。同源： Rigide (僵硬的), Rigorisme (严规主义)。\nlaxisme	n.m.	放任/松懈	dénoncer le laxisme.	谴责放任行为。	根： laxus (松的)。同源： Lâche (松的/胆怯的), Laxatif (泻药)。\nintégrité	n.f.	正直/完整	préserver son intégrité.	保持正直/完整性。	根： in- (不) + tangere (触摸)。同源： Entier (完整的), Tact (分寸/触觉)。\ncorruption	n.f.	腐败	lutter contre la corruption.	与腐败作斗争。	根： cum + rumpere (打破)。同源： Rompre (打破), Rupture (破裂)。\néthique	n.f./adj.	伦理(的)	un code éthique.	伦理守则。	根： ethos (习惯/性格)。同源： Éthologie (动物行为学)。\nmorale	n.f.	道德	une leçon de morale.	一堂道德课。	根： mos (风俗/习惯)。同源： Moeurs (习俗), Moralité (道德)。\ndéontologie	n.f.	职业道德	respecter la déontologie.	遵守职业道德。	根： deontos (义务) + logos (学问)。同源： Ontologie (本体论)。\nconviction	n.f.	信念/说服	parler avec conviction.	满怀信心地说话。	根： cum + vincere (战胜/证明)。同源： Convaincre (说服)。\npersuasion	n.f.	说服力	avoir le sens de la persuasion.	具有说服力。	根： per- + suadere (建议/甜)。同源： Suasif (劝说的)。\ndissuasion	n.f.	威慑	la force de dissuasion.	威慑力量。	根： dis- + suadere。同源： Dissuader (劝阻)。\ncontrainte	n.f.	约束/强制	sous la contrainte.	在被迫的情况下。	根： cum + stringere (拉紧)。同源： Étreindre (紧抱), Strict (严格的)。\nliberté	n.f.	自由	la liberté d'expression.	言论自由。	根： liber (自由)。同源： Libérer (释放), Libéral (自由主义的)。\nautonomie	n.f.	自治/自主	gagner en autonomie.	获得自主权。	根： autos (自己) + nomos (法律)。同源： Automate (自动机), Économie (经济)。\ndépendance	n.f.	依赖	la dépendance au pétrole.	对石油的依赖。	根： de- + pendere (悬挂)。同源： Pendre (悬挂), Pendentif (吊坠)。\naliéner	v.	疏远/转让	il a aliéné ses amis.	他疏远了他的朋友们。	根： alienus (他人的)。同源： Aliéné (精神错乱者/被疏远者)。\nassujettir	v.	使服从	assujettir un peuple.	奴役一个民族。	根： ad- + sub- + jacere (投掷)。同源： Sujet (臣民/主语)。\nopprimer	v.	压迫	un peuple opprimé.	被压迫的民族。	根： ob- + premere (压)。同源： Presser (压), Comprimer (压缩)。\nlibérer	v.	释放	libérer les énergies.	释放能量。	根： liber (自由)。同源： Libération (解放)。\nsoumettre	v.	提交/使屈服	soumettre un rapport.	提交一份报告。	根： sub- + mittere (发送/放置)。同源： Mettre (放), Mission (任务)。\ninsurrection	n.f.	起义	une insurrection populaire.	一场民众起义。	根： in- + sub- + regere (直立/统治)。同源： Ressusciter (复活), Surgir (突然出现)。\nrépression	n.f.	镇压	la répression policière.	警察镇压。	根： re- + premere (压)。同源： Réprimer (镇压/抑制)。\nconsensus	n.m.	共识	arriver à un consensus.	达成共识。	根： cum + sentire (感觉)。同源： Sentiment (情感), Consentir (同意)。\ndissension	n.f.	纠纷/不和	semer la dissension.	播种不和。	根： dis- + sentire。同源： Dissentiment (异议)。\nlitige	n.m.	诉讼/争端	régler un litige.	解决争端。	根： lis (争端) + agere (驱动)。同源： Litigieux (有争议的)。\ncontentieux	n.m.	争端/争议部	un lourd contentieux.	沉重的争议。	根： contendere (角逐)。同源： Détente (缓和)。\nmédiation	n.f.	调解	faire appel à une médiation.	寻求调解。	根： medius (中间)。同源： Médium (媒介)。\nconciliation	n.f.	调和	une tentative de conciliation.	一次调和的尝试。	根： conciliare (招聚)。同源： Concile (宗教会议)。\narbitrage	n.m.	仲裁	rendre un arbitrage.	作出仲裁。	根： arbiter (裁判)。同源： Arbitraire (任意的)。\npactiser	v.	达成协议/妥协	pactiser avec l'ennemi.	与敌人达成妥协。	根： pactum (契约/和平)。同源： Pacte (公约), Paix (和平)。\ntrahir	v.	背叛	trahir un secret.	背叛秘密。	根： tradere (交出/传递)。同源： Tradition (传统), Trahison (背叛)。\nfidélité	n.f.	忠诚	jurer fidélité.	宣誓效忠。	根： fides (信任/信仰)。同源： Foi (信仰), Fiancé (未婚夫)。\nloyauté	n.f.	忠诚/正直	agir avec loyauté.	忠诚地行事。	根： lex (法律)。同源： Loyal (忠诚的), Loyaliste (效忠者)。\nduplicité	n.f.	欺骗/两面派	sa duplicité m'étonne.	他的虚伪两面让我惊讶。	根： duplex (双重)。同源： Double (双倍), Dupliquer (复制)。\nfranchise	n.f.	坦率	parler en toute franchise.	开诚布公地谈话。	根： frank (自由)。同源： Franc (坦率的)。\nhypocrisie	n.f.	虚伪	détester l'hypocrisie.	讨厌虚伪。	根： hypo (在下) + krinein (判断/区分)。同源： Critique (评论), Crise (危机)。\nsincérité	n.f.	真诚	douter de sa sincérité.	怀疑他的真诚。	根： sincerus (纯净的/无蜡的)。同源： Sincère (真诚的)。\néquité	n.f.	公平	traiter avec équité.	公平对待。	根： aequus (平等的)。同源： Équitable (公正的)。\nimpartialité	n.f.	公正性	l'impartialité du jury.	陪审团的公正性。	根： in- + pars。同源： Partisan (党徒/追随者)。\npréjuger de	v.	预料/预判	ne pas préjuger de l'avenir.	不要预判未来。	根： prae- + judicare。同源： Préjudiciel (预审的)。\nprévoir	v.	预见	il avait tout prévu.	他早已预料到了一切。	根： prae- + videre。同源： Prévoyance (远见)。\nprédire	v.	预言	prédire la météo.	预报天气。	根： prae- + dicere。同源： Prédiction (预言)。\npressentir	v.	预感	je pressentais ce drame.	我预感到了这场惨剧。	根： prae- + sentire。同源： Pressentiment (预感)。\nsoupçonner	v.	怀疑	je le soupçonne de mentir.	我怀疑他在撒谎。	根： sub- + specere (看)。同源： Suspect (嫌疑人), Spécimen (标本)。\ndouter de	v.	怀疑	je doute de son succès.	我怀疑他能否成功。	根： dubitare (迟疑/在两者间)。同源： Doute (怀疑), Dubitatif (怀疑的)。\nse méfier de	v.	警惕	se méfier de l'eau qui dort.	提防静水深流（警惕看似平静的危险）。	根： minus + fides (信)。同源： Méfiance (不信任)。\nse fier à	v.	信任	se fier à son instinct.	相信直觉。	根： fides。同源： Confiance (信心)。\nescompter	v.	期待/指望	le résultat escompté.	预期的结果。	根： ex- + computare (计算)。同源： Compte (账户), Escompte (贴现/折扣)。\nappréhender	v.	逮捕/担心/理解	appréhender un suspect.	逮捕一名嫌疑人。	根： ad- + prehendere (抓住)。同源： Prendre (拿), Apprentissage (学习)。\nassimiler	v.	同化/比作	assimiler une culture.	同化一种文化。	根： ad- + similis。同源： Assimilation (同化)。\ntransposer	v.	转换/移调	transposer un roman au cinéma.	将小说改编成电影。	根： trans (跨越) + pausare (放置)。同源： Poser (放), Transport (运输)。\nadapter	v.	适应/改编	adapter son style.	调整自己的风格。	根： ad- + aptus (合适的)。同源： Apte (有能力的), Aptitude (才能)。\najuster	v.	调整	ajuster les prix.	调整价格。	根： ad- + justus (正确的/正义的)。同源： Juste (正确的), Justice (正义)。\nréformer	v.	改革	réformer le système.	改革系统。	根： re- + formare (形状)。同源： Forme (形状), Formation (培训)。\ntransformer	v.	转变	transformer un essai.	转型成功（橄榄球术语，引申为完成转变）。	根： trans + formare。同源： Transformation (转型)。\nmuter	v.	变异/调动	le virus a muté.	病毒发生了变异。	根： mutare (改变)。同源： Mutation (突变), Permuter (交换/置换)。\névoluer	v.	进化/演变	faire évoluer les mentalités.	改变观念。	根： ex- + volvere (滚动)。同源： Évolution (演变), Volume (音量/卷)。\nstagner	v.	停滞	l'économie stagne.	经济停滞。	根： stagnare (静止)。同源： Stagnation (停滞), Étang (池塘)。\nrégresser	v.	退化	son état régresse.	他的病情出现倒退。	根： re- + gradi (步/行走)。同源： Grade (等级), Degré (程度), Progrès (进步)。\nprogresser	v.	进步	progresser rapidement.	进步神速。	根： pro- + gradi。同源： Progression (发展)。\ndécliner	v.	婉拒/衰落	décliner une invitation.	谢绝邀请。	根： de- + clinare (弯曲/倾斜)。同源： Incliner (倾斜), Clinique (门诊/原意病床)。\nprospérer	v.	繁荣	son commerce prospère.	他的生意兴隆。	根： pro (向前) + spes (希望)。同源： Prospérité (繁荣), Espoir (希望)。\népanouir	v.	使开朗/茂盛	s'épanouir dans son travail.	在工作中找到自我/充实自我。	根： ex- + pandere (展开)。同源： Expandre (扩散), Pan (面/部分)。\nfrustrer	v.	使沮丧	cela peut frustrer l'élève.	这可能会让学生感到挫败。	根： frustra (徒然/欺骗)。同源： Frustration (挫败感)。\ngratifier	v.	奖赏/赋予	être gratifié d'un prix.	被授予奖项。	根： gratus (悦人的/感激) + facere。同源： Gratuit (免费的), Grâce (恩典)。\nsanctionner	v.	惩罚/批准	sanctionner une faute.	惩处错误。	根： sancire (神圣化/制定)。同源： Saint (神圣的), Sanctuaire (避难所)。\nrécompenser	v.	奖励	récompenser l'effort.	奖励努力。	根： re- + cum + pendere (称重/支付)。同源： Dépense (支出)。\nvaloriser	v.	使增值/重视	valoriser les compétences.	使技能增值/重视技能。	根： valere (价值)。同源： Valeur (价值), Plus-value (增值)。\ndéprécier	v.	使贬值/轻视	déprécier le travail d'autrui.	贬低他人的工作。	根： de- + pretium (价格)。同源： Prix (价格), Précieux (珍贵的)。\nminimiser	v.	减到最低/轻描淡写	minimiser les risques.	将风险减到最低。	根： minimus (最小)。同源： Minimum (最小限度), Mince (瘦的)。\nexagérer	v.	夸大	tu exagères toujours.	你总是夸大其词。	根： ex- + agger (土堆/堆积)。同源： Exagération (夸张)。\namplifier	v.	扩大	amplifier le son.	放大声音。	根： amplus。同源： Amplification (放大)。\nsimplifier	v.	简化	simplifier la procédure.	简化流程。	根： simplus (单一/简单) + facere。同源： Simple (简单的), Simplicité (单纯)。\ncomplexifier	v.	使复杂化	ne pas complexifier inutilement.	不要进行不必要的复杂化。	根： cum + plectere (编织)。同源： Complexe (复杂的), Pli (褶皱)。");
+	
+
+
+	document.getElementById("testarea").innerHTML = window.screen.width;
+</script>
+
+
+
+<deepl-input-controller><template shadowrootmode="open"><link rel="stylesheet" href="chrome-extension://cofdbpoegempjloogbagkncekinflcnj/build/content.css"><div dir="ltr"><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller></body></html>

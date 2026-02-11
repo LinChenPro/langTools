@@ -1,0 +1,1071 @@
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<!-- saved from url=(0041)https://www.budingparis.com/tests/VT.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<script type="text/javascript">
+// levels constents
+var INIT_LEVEL = 50;
+var MAX_LEVEL = 100;
+
+// list size definition
+var MAX_CRT_SIZE = 10;
+var ERROR_SIZE = 3;
+
+// repeat time définitions
+var MAX_CORRECT_TM = 20;
+var MAX_REPEAT_ERROR = 3;
+var NEED_CORRECT_TM = 4;
+var NEED_RECORRECT_TM = 3;
+var ERROR_WAIT_LENGTH = 4;
+
+var STATUT_WATTING = 1;
+var STATUT_CRT = 2;
+var STATUT_ERROR = 3;
+var STATUT_FINISHED = 4;
+
+var SHOW_LIST = true;
+
+// list functions
+// return if arr contient findValue
+function contains(arr, findValue){
+	for(var i=0; i<arr.length; i++){
+		if(arr[i]==findValue){
+			return true;
+		}
+	}
+	return false;
+}
+function removeValue(list, value){
+	for(i in list){
+		if(list[i] == value){
+			list.splice(i, 1);
+		}
+	}	
+}
+
+
+// random 0 to n-1, ratio i / i+1 = d 
+function randomRatio(n, d){// alert(currentList.length + ", " + n + "," + d)
+	if(d==1){
+		return random(n);
+	}
+	var N = (Math.pow(d, n)-1);
+	var r = N + 1 - Math.random() * N;
+	return n - Math.ceil(Math.log(r) / Math.log(d));
+}
+
+// random 0 to n-1
+function random(n){
+	return Math.floor(Math.random()*n);
+}
+
+// lists
+var waitingList;
+var finishedList;
+var currentList;
+var errorList;
+function initEmptyLists(){
+	waitingList = new Array();
+	finishedList = new Array();
+	currentList = new Array();
+	errorList = [emptyWordId(), emptyWordId(), emptyWordId()];
+
+}
+
+function emptyWordId(){
+	return -(random(1000)+1000);
+}
+
+function isEmptyWordId(i){
+	return i<0;
+}
+
+function isValidWordId(i){
+	return i>=0 && i< words.length;
+}
+
+function initLists(){
+	initEmptyLists();
+
+	for(var i=0; i<words.length; i++){
+		toWaitting(i);
+	}
+
+	for(var i=0; i<MAX_CRT_SIZE; i++){
+		if(waitingList.length==0){
+			break;
+		}
+		r = random(waitingList.length);
+		toCurrent(waitingList.splice(r, 1)[0]);
+	}
+}
+
+// functions that set value i into a list
+function changeToList(i, list, statut, pos){	
+	// remove if already exist
+	removeValue(waitingList, i);
+	removeValue(currentList, i);
+	removeValue(errorList, i);
+	removeValue(finishedList, i);
+
+	if(pos==null || list.length<pos){
+		list.push(i);
+	}else{
+		list.splice(pos, 0, i);
+	}
+	if(isValidWordId(i) && (statut==STATUT_WATTING || words[i].statut != STATUT_FINISHED)){
+		words[i].statut = statut;
+	}
+}
+
+function toWaitting(i){
+	if(!isEmptyWordId(i) && words[i].statut != STATUT_WATTING){
+		words[i].totalCorrectCt = 0;
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, waitingList, STATUT_WATTING);
+}
+
+function toCurrent(i, pos){
+	if(isValidWordId(i) && words[i].statut != STATUT_CRT){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, currentList, STATUT_CRT, pos);
+}
+
+function toError(i){
+	if(isValidWordId(i) && words[i].statut != STATUT_ERROR){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, errorList, STATUT_ERROR);
+	if( errorList.length > ERROR_SIZE){
+		for(i=errorList.length; i>=0; i--){
+			if(isEmptyWordId(errorList[i])){
+				errorList.splice(i, 1);
+				break;
+			}
+		}
+	}
+}
+
+function toFinished(i){
+	changeToList(i, finishedList, STATUT_FINISHED);
+}
+
+// affichage functions
+function affLists(){
+	showList(waitingList, "waiting_div");
+	showList(finishedList, "finished_div");
+	showList(currentList, "current_div");
+	showList(errorList, "error_div");
+	document.getElementById("aff").style.display = SHOW_LIST ? "block" : "none";
+}
+
+function showList(list, divId){
+	var div = document.getElementById(divId);
+	div.innerHTML = "";
+	for(var i=0; i<list.length; i++){
+		div.innerHTML += getWordAff(list[i]);
+	}
+}
+
+function getWordAff(i){
+	if(isValidWordId(i)){
+		var word = words[i];
+		colorCode = getColorCode(word.level)
+		var selectedword = (i==SELECTED_WORD_ID)?" crtword" : "";
+		var finishedword = (word.statut==STATUT_FINISHED)?" finishedword" : "";
+		return '<div class="affword'+ selectedword + finishedword + '" style="background-color:'+colorCode+'">'
+				+ getIndiceBlock("error", MAX_REPEAT_ERROR, word.repeatErrCt)
+				+ (
+					word.statut==STATUT_ERROR 
+					? getIndiceBlock("recorect", NEED_RECORRECT_TM, word.correctCt) 
+					: getIndiceBlock("correct", NEED_CORRECT_TM, word.correctCt) 
+				)
+				+ getIndiceBlock("total", MAX_CORRECT_TM, word.totalCorrectCt)
+				+ word.word +'</div>\n';
+	}else{
+		return '<div class="affword_null" style="background-color:white">&nbsp;</div>\n';
+	}
+}
+
+function getIndiceBlock(name, total, value){
+	var spanHtml = '\n<span class="indice_b b_' + name + '">';	
+	var name_point = name;
+	if( (name=="total" && total > 20) || (name!="total" && total > 5)){
+		name_point += "_small";
+	}
+
+	for(var i=0; i<total; i++){
+		if(i<value){
+        	spanHtml += '\n  <span class="indice_v '+name_point+'"></span>'
+		}else{
+			spanHtml += '\n  <span class="indice_t '+name_point+'"></span>'
+		}
+	}
+    spanHtml += '\n</span>\n';
+	return spanHtml;
+        		
+}
+
+function getColorCode(level){
+	var level = (level-1)
+	if(level<1){
+		level=1;
+	}
+	level = Math.floor(100/level)+155;
+
+	var a=level.toString(16);
+	return "#"+a+a+a;
+}
+
+var words=[];
+
+
+function hideButtons(divId){
+	document.getElementById(divId).style.display="none";
+}
+
+function showButtons(divId){
+	document.getElementById(divId).style.display= (divId=="btndiv_3" || divId=="btndiv_4") ? "inline-block" : "inline-block";
+}
+
+function showStartButtonsByCondition(){
+	if(words==null || words.length <=0 ){
+		hideButtons("btndiv_3");
+	}else{
+		showButtons("btndiv_3");
+	}
+
+}
+
+function getSeparator(){
+	var radios = document.getElementsByName("separator");
+	for(var i=0; i<radios.length; i++){
+		if(radios[i].checked){
+			return radios[i].value;
+		}
+	}
+	return ",";
+}
+
+function load(){
+	var inputs = document.getElementById("input_words").value;
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	words = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split(getSeparator());
+		if(params.length==2){
+			words[i]={'word':params[0],'mean':params[1],'level':INIT_LEVEL};
+		}else if(params.length==3 && params[2]!=''){
+			words[i]={'word':params[0],'mean':params[1],'level':params[2]};
+		}
+	}
+	
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function save(){
+	var saveValues = "";
+	for(var i=0; i<words.length; i++){
+		saveValues += words[i].word+getSeparator()+words[i].mean+getSeparator()+words[i].level+"\n";
+	}
+	
+	document.getElementById("input_words").value = saveValues;
+}
+
+
+
+function getQuestionField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "mean" : "word";
+}
+
+function getAnswerField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "word" : "mean";
+}
+
+function getNext(list, ratio){
+	var i = randomRatio(list.length-1, ratio);
+	// return list.splice(i, 1)[0]; // ch
+	return list[i]; 
+}
+
+var startTime;
+function start(){
+	initLists();
+	startTime = Date.now();
+	nextWord();
+}
+
+function finish(){
+	var t = Math.floor((Date.now()-startTime)/1000)
+	alert("完成 !\n用时" + Math.floor(t/60) +"m"+ (t%60) +"s");
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showButtons("btndiv_3");
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	initLists();
+	affLists();
+	save();
+}
+
+var SELECTED_WORD_ID;
+crtWordBeginTime=0;
+function nextWord(){
+	var i = getNext(errorList, 3);
+	if(isValidWordId(i)){
+		SELECTED_WORD_ID = i;
+	}else{
+		toError(i);
+		SELECTED_WORD_ID = getNext(currentList, 2);
+	}
+
+	crtWordBeginTime=new Date().getTime();
+	showQuestion();
+
+	showButtons("btndiv_1");
+	showButtons("btndiv_2");
+	hideButtons("btndiv_3");
+	showButtons("btndiv_4");
+	// hideButtons("btndiv_5");
+
+
+	affLists();
+}
+
+function showQuestion(){
+	var field = getQuestionField();
+	var question = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(question);
+	}
+
+	document.getElementById("question").innerHTML = field=="word"? ('<span class="bigger">' + question + '</span>') : question;
+	document.getElementById("answer").innerHTML="";	
+	var crtDetail = getCrtDetail();
+	if(crtDetail != null){
+		document.getElementById("detail").innerHTML = crtDetail;
+		showButtons("btndiv_5");
+	}else{
+		hideButtons("btndiv_5");
+	}
+	hideDetail();
+}
+
+function getCrtDetail(){
+	var crtWd = words[SELECTED_WORD_ID];
+	if(crtWd.example != null){
+		return '<span class="small">' + crtWd.example + "<br>" + crtWd.exampleTrans + (crtWd.src == "不适用单词" ? "" : ("<br>" + crtWd.src)) + '</span>';
+	}else{
+		return null;
+	}
+}
+
+function hideDetail(){
+	document.getElementById("detail").style.display="none";
+}
+
+function showDetail(){
+	document.getElementById("detail").style.display="block";
+}
+
+function swichDetail(){
+	if(document.getElementById("detail").style.display=="none"){
+		showDetail();
+	}else{
+		hideDetail();
+	}
+}
+
+
+function showAnswer(){
+	var field = getAnswerField();
+	var answer = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(answer);
+	}
+	document.getElementById("answer").innerHTML = field=="word"? ('<span class="bigger">' + answer + '</span>') : answer;	
+}
+
+function readCurrentWord(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.word);
+	}
+}
+
+function readCurrentDetail(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.example);
+	}
+}
+
+function onRight(){
+	updateLevel(SELECTED_WORD_ID, true);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	crtWord.totalCorrectCt++;
+	crtWord.correctCt++;
+	crtWord.repeatErrCt = 0;
+
+	if(crtWord.totalCorrectCt >= MAX_CORRECT_TM || (crtStatut==STATUT_CRT && crtWord.correctCt>=NEED_CORRECT_TM)){
+		toFinished(SELECTED_WORD_ID);
+	}else if(crtStatut==STATUT_ERROR && crtWord.correctCt>=NEED_RECORRECT_TM){
+		toCurrent(SELECTED_WORD_ID)
+	}else{
+		if(crtStatut == STATUT_ERROR){
+			toError(SELECTED_WORD_ID);
+		}else{
+			toCurrent(SELECTED_WORD_ID);
+		}
+	}
+
+	if(errorList.length < ERROR_SIZE){
+		errorList.push(emptyWordId());
+	}
+
+	while(currentList.length + validWordIdCount(errorList) < MAX_CRT_SIZE && words.length >= MAX_CRT_SIZE){
+		if(waitingList.length>0){
+			var r = random(waitingList.length);
+			toCurrent(waitingList.splice(r, 1)[0]);
+		}else if(finishedList.length>0){
+			var r = random(finishedList.length);
+			toCurrent(finishedList.splice(r, 1)[0]);
+		}
+	}
+
+	if(isAllFinished()){
+		finish();
+	}else{
+		nextWord();
+	}
+
+}
+
+function onWrong(){
+	updateLevel(SELECTED_WORD_ID, false);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	
+	crtWord.repeatErrCt++;
+	if(crtStatut==STATUT_ERROR || crtWord.repeatErrCt>=MAX_REPEAT_ERROR){
+		toError(SELECTED_WORD_ID);
+	}else{
+		toCurrent(SELECTED_WORD_ID, ERROR_WAIT_LENGTH);
+	}
+
+
+
+	nextWord();
+}
+
+function validWordIdCount(list){
+	var cnt = 0;
+	for(i in list){
+		if(isValidWordId(list[i])){
+			cnt++;
+		}
+	}
+	return cnt;
+}
+
+function isAllFinished(){
+	var cnt = 0;
+	for(i in words){
+		if(words[i].statut == STATUT_FINISHED){
+			cnt++;
+		}
+	}
+	return cnt==words.length;
+}
+
+function updateLevel(idx, res){
+	if(!res){
+		words[idx].level=MAX_LEVEL;
+	}else{
+		var tm = new Date().getTime()-crtWordBeginTime
+		words[idx].level=Math.min(Math.floor((words[idx].level+tm/1000)/2), MAX_LEVEL);
+		
+	}
+}
+
+function initOptions(){
+	initOptionSelector("OPTION_MAX_CRT_SIZE", MAX_CRT_SIZE, 6, 20);
+	initOptionSelector("OPTION_ERROR_SIZE", ERROR_SIZE, 2, 6);
+	initOptionSelector("OPTION_MAX_CORRECT_TM", MAX_CORRECT_TM, 5, 40);
+	initOptionSelector("OPTION_NEED_CORRECT_TM", NEED_CORRECT_TM, 1, 10);
+	initOptionSelector("OPTION_MAX_REPEAT_ERROR", MAX_REPEAT_ERROR, 1, 5);
+	initOptionSelector("OPTION_NEED_RECORRECT_TM", NEED_RECORRECT_TM, 1, 10);
+}
+
+function initOptionSelector(elmId, param, minV, maxV){
+	var selector = document.getElementById(elmId);
+	for(var i=minV; i<=maxV; i++){
+		selector.add(new Option(i,i, false, i==param));
+	}
+}
+
+
+function changeOption(){
+	MAX_CRT_SIZE = document.getElementById("OPTION_MAX_CRT_SIZE").value;
+	ERROR_SIZE = document.getElementById("OPTION_ERROR_SIZE").value;
+	MAX_CORRECT_TM = document.getElementById("OPTION_MAX_CORRECT_TM").value;
+	NEED_CORRECT_TM = document.getElementById("OPTION_NEED_CORRECT_TM").value;
+	MAX_REPEAT_ERROR = document.getElementById("OPTION_MAX_REPEAT_ERROR").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	SHOW_LIST = document.getElementById("OPTION_SHOW_LIST").checked;
+	affLists();	
+}
+
+// keyboard
+function handleShortcut(event) { 
+    if (event.key === "ArrowLeft") { 
+        onRight();
+        event.preventDefault(); 
+        // Votre action à effectuer lorsque la touche est enfoncée 
+    }else if(event.key === "ArrowRight"){
+        onWrong();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowUp"){
+        readCurrentWord();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowDown"){
+        showAnswer();
+        event.preventDefault(); 
+    }else if(event.key === "l"){
+        swichDetail();
+        event.preventDefault(); 
+    }else if(event.key === "o"){
+        readCurrentDetail();
+        event.preventDefault(); 
+    }
+} 
+document.addEventListener("keydown", handleShortcut);
+
+
+
+// voice reader
+
+var reader_init_count = 0;
+var reader_voices;
+function waitInit(){
+	var success = false;
+	try {
+		if(window.speechSynthesis.getVoices().length>0){
+			reader_voices = window.speechSynthesis.getVoices();
+
+			initSelector("fr-FR");
+			// initSelector("zh-CN");
+			// initSelector("zh-TW");
+			success = true;
+		}
+	} catch (error) {console.error(error);}
+
+	if(success){
+		return;
+	}else if(!success && reader_init_count++<5){
+		setTimeout(waitInit,100);
+	}
+}
+
+
+function initSelector(lang){
+	var selector = document.getElementById("lang_"+lang);
+	for(i=0; i<reader_voices.length; i++){
+		if(reader_voices[i].lang==lang){
+			var option_i = new Option(reader_voices[i].name,i, false, reader_voices[i].name.includes("Google"));
+			selector.add(option_i);
+		}
+	}
+}
+
+
+function getVoice(v){
+	return reader_voices[v];
+}
+
+function speak(txt, voice){
+	try{
+		var speech = new SpeechSynthesisUtterance();
+		speech.voice = voice;
+		speech.text = txt;
+		window.speechSynthesis.speak(speech);
+	}catch (error) {}
+}
+
+function read(id, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(document.getElementById(id).value, getVoice(lang));
+}
+
+function readText(txt, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(txt, getVoice(lang));
+}
+
+
+function readWord(wd){
+	if(needRead() && reader_voices != null){
+		readText(wd, "fr-FR")
+	}
+
+}
+
+function needRead(){
+	return document.getElementById("read_option").checked;
+}
+
+function changeReadOption(){
+	document.getElementById("readCrtWdBt").disabled = !document.getElementById("read_option").checked;
+}
+
+
+var lessonsList = [];
+function loadTxt(inputs){
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	var lesson = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split("\t");
+		if(params.length==2){
+			lesson.push({'word':params[0],'mean':params[1],'level':INIT_LEVEL});
+		}else if(params.length==3 && params[2]!=''){
+			lesson.push({'word':params[0],'mean':params[1],'level':params[2]});
+		}else if(params.length==5){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4]})
+		}else if(params.length==6){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4],'src':params[5]})
+		}
+
+		if(lesson.length==42){
+			lessonsList.push(lesson);
+			lesson = new Array();
+		}
+	}
+	if(lesson.length != 0){
+		lessonsList.push(lesson);
+	}
+
+	var selector = document.getElementById("lessons");
+	for(var i=0; i<lessonsList.length; i++){
+		var option = document.createElement("option");
+		option.text = i+1;
+		selector.add(option);
+	}
+}
+
+function loadLesson(){
+	var selector = document.getElementById("lessons");
+	if(selector.value != null){
+		words = lessonsList[selector.value-1];
+		save();
+	}
+
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function nw(w, m){
+	return {'word':w,'mean':m,'level':INIT_LEVEL};
+}
+
+
+setTimeout(waitInit,100);
+
+</script>
+
+<style type="text/css">
+@media only screen and (max-width: 600px) {
+*{
+    font-family: sans-serif;
+	font-size: 30px;
+}
+
+.option_title {
+    width: 50% !important;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+#aff{
+	position: initial !important;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+
+#exe{
+	height: 900px !important;
+	position: relative;
+	width: 570px;
+}
+
+#question, #answer{
+	font-size: 40px !important;	
+	padding-top: 10px;
+	height: 200px !important;	
+}
+
+#question{
+	text-align: left;
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 7px !important;
+    padding: 5px;
+    margin: 50px 20px 0 20px !important;
+    width: 85%	 !important;
+}
+
+#detail, #detail *{
+    font-size: 15px !important;
+}
+
+.bigger{
+	font-size: 50px !important;	
+	font-weight: bold;
+}	
+
+
+#btndiv_1 button, #btndiv_2 button, #btndiv_5 button{
+	height: 100px !important;
+	width: 135px;
+	font-size: 35px !important;	
+	bottom: 10px;
+}
+
+#btndiv_1 , #btndiv_2, #btndiv_5{
+	position: absolute !important;
+	bottom: 10px;
+	width: 280px;
+}
+
+#btndiv_1 {
+	left:10px;
+	bottom:120px;
+
+}
+
+#btndiv_2 {
+	left:10px;
+}
+
+#btndiv_5 {
+	left:10px;
+	bottom:240px;
+}
+
+#input_words{
+	font-size: 25px !important;
+}
+
+}
+
+
+body{
+    font-family: sans-serif;
+}
+
+.buttons button{
+	padding:5px; 
+	margin:5px;
+	font-size: 8px;
+}
+#word{
+	font-size: 20px;
+}
+#input_words{
+	width:550px;
+	height:200px;
+	font-family: sans-serif;
+}
+#aff{
+	position: absolute;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+.list_aff{
+    min-width: 150px;
+    padding: 5px;
+    display: inline-block;	
+	vertical-align: top
+}
+
+.affword, .affword_null{
+	font-size: 12px;
+	border: 1px solid green;
+	margin: 2px 0px;
+	padding: 1px;
+    display:block;
+}
+
+.crtword{
+	border: 1px solid red !important;
+	font-weight:bold;
+}
+
+.finishedword{
+	color:#712a2a;
+	font-weight:bold;
+}
+
+
+.indice_b{
+	display: inline-block;
+    background-color: #bbbb88;
+    width: 6px;
+    float: inline-end;
+    padding: 0px 1px 1px 0px;
+    margin-left : 3px;
+}
+
+.indice_v, .indice_t{
+	display: inline-block;
+    margin: 1px 1px 0px 1px;
+    width: 5px;
+    height: 2px;
+    vertical-align: top;
+    float: inline-start;
+}
+
+.indice_t{
+	opacity:0.2;
+}
+
+.error, .error_small{
+	background-color:red;
+}
+
+.correct, .correct_small{
+	background-color:green;
+}
+
+.recorect, .recorect_small{
+	background-color:blue;
+}
+
+
+.error_small, .correct_small, .recorect_small{
+    height: 1px;
+    margin-top: 0.5px;
+}
+
+.b_total{
+	width:12px;
+}
+
+.total{
+    background-color: green;
+    width:2px;
+    margin: 1px 0px 0px 1px;
+}
+
+.total_small{
+    background-color: green;
+    width:1px;
+    margin: 0.2px 0px 0px 1px;
+}
+
+#question, #answer{
+	font-size: 25px;	
+	height: 60px;
+	padding-left:5px;
+	height: 60px;
+	padding-left:5px;
+}
+
+#question{
+	color: #bb4110;	
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 10px;
+    padding: 5px;
+    margin: 20px 0 0 20px;
+    width: 550px;
+}
+
+#answer{
+	color: #174917;	
+}
+
+
+.block{
+	margin: 20px 5px;
+	padding: 5px;
+	width: 600px;
+	border: 1px solid black;
+}
+
+.div_sep{
+	border-bottom: 1px solid black;
+	margin: 10px;
+}
+
+.option_title{
+	width: 150px;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+
+</style>
+<title>单词训练</title>
+</head>
+<body onkeypress="onKey(event)">
+
+<div>
+
+	<div class="block" id="exe">
+		<div id="detail"></div>
+		<div id="question"></div>
+		<div id="answer"></div>
+
+
+		<span id="btndiv_1" style="display: none;">
+			<button onclick="onRight();">正确←</button>
+			<button onclick="onWrong();">错误→</button>
+		</span>
+		&nbsp;&nbsp;
+		<span id="btndiv_2" style="display: none;">
+			<button onclick="showAnswer();">答案↓</button>
+			<button onclick="readCurrentWord();" id="readCrtWdBt">读音↑</button>
+		</span>
+		<span id="btndiv_5" style="display: none;">		
+			<button onclick="swichDetail();" id="detailCrtWdBt">详情L</button>
+			<button onclick="readCurrentDetail();" id="readDetailCrtWdBt">读例O</button>
+		</span>
+		
+	</div>
+	
+
+	<div class="block">
+		方向 : 
+		<input type="radio" name="direction" value="0" checked="">法 - 汉
+		&nbsp;&nbsp;
+		<input type="radio" name="direction" value="1" id="direction_inverse">汉 - 法
+		&nbsp;&nbsp;&nbsp;
+		<span id="btndiv_3" style="display: none;">
+			<button id="b_32" onclick="start();">开始</button>
+		</span>
+		<span id="btndiv_4" style="display: none;">
+			<button id="b_32" onclick="finish();">结束</button>
+		</span>
+	</div>
+
+	<div class="block">
+		<div id="lists"></div>
+		<textarea id="input_words"></textarea>
+		<br>
+		<button onclick="load();">导入单词</button>
+		<button onclick="save();">导出单词</button>
+		分隔符 : <input type="radio" name="separator" value=";" checked=""> <b>;</b>
+		&nbsp; &nbsp;
+		<input type="radio" name="separator" value=","> <b>,</b>
+	</div>
+	<div class="block">
+		<select id="lessons"></select> <button onclick="loadLesson();">导入课程</button>
+	</div>
+	
+	<div class="block">
+		<div>
+			<button onclick="waitInit()">初始化语音引擎</button>&nbsp; &nbsp;
+			法语引擎 : <select id="lang_fr-FR"><option value="0">Microsoft Hortense - French (France)</option><option value="1">Microsoft Julie - French (France)</option><option value="2">Microsoft Paul - French (France)</option><option value="9">Google français</option></select>
+		</div>
+
+		<div>
+			开启单词朗读功能<input type="checkbox" id="read_option" checked="" onchange="changeReadOption()">&nbsp; &nbsp;
+			测试文字<input type="text" id="word_fr" value="banana"><button onclick="read(&#39;word_fr&#39;, &#39;fr-FR&#39;)"> 试读 </button>
+		</div>
+	</div>
+	
+
+	<div class="block">
+		<div class="div_sep">选项 : </div>
+		<div><span class="option_title">当前列表长度 : </span><select id="OPTION_MAX_CRT_SIZE" onchange="changeOption()"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select></div>
+		<div><span class="option_title">错误列表长度 : </span><select id="OPTION_ERROR_SIZE" onchange="changeOption()"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大总正确次数 : </span><select id="OPTION_MAX_CORRECT_TM" onchange="changeOption()"><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option></select></div>
+		<div><span class="option_title">所需正确次数 : </span><select id="OPTION_NEED_CORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大重复错误次数 : </span><select id="OPTION_MAX_REPEAT_ERROR" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+		<div><span class="option_title">所需更正次数 : </span><select id="OPTION_NEED_RECORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">显示列表信息 : </span><input type="checkbox" id="OPTION_SHOW_LIST" checked="" onchange="changeOption()"></div>
+	</div>
+
+
+	<div id="aff" style="display: block;">
+		<div id="waiting_div" class="list_aff"></div>
+		<div id="current_div" class="list_aff"></div>
+		<div id="error_div" class="list_aff"><div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+</div>
+		<div id="finished_div" class="list_aff"></div>
+
+	</div>
+
+	<div id="testarea">1920</div>
+
+
+
+</div>
+<script type="text/javascript">
+	initLists();
+	affLists();	
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showStartButtonsByCondition();
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	hideDetail();
+
+	initOptions();
+	loadTxt("conductivité	n.f.	导电性/导热性	l'or possède une excellente conductivité électrique.	金拥有极佳的导电性。	根：拉丁语 conducere（引导，con- 共同 + ducere 引领）→ 传导性；同源：conducteur（导体，传导者）、conduite（管道，行为）\nrésistance	n.f.	电阻/阻力	la résistance de l'air freine la chute de l'objet.	空气阻力减缓了物体的下落。	根：拉丁语 resistere（抵抗，re- 反对 + sistere 站立）→ 抵抗力；同源：résister（抵抗）、résistant（耐用的，抵抗的）\ncombustion	n.f.	燃烧	le moteur à combustion interne est remis en question.	内燃机正受到质疑。	根：拉丁语 combustio（燃烧，com- 完全 + urere 燃烧）→ 燃烧过程；同源：combustible（可燃物）、comburant（助燃剂）\nfriction	n.f.	摩擦(力)	l'huile réduit la friction entre les pièces du moteur.	机油减少了发动机零件间的摩擦。	根：拉丁语 frictio（摩擦，fricare 摩擦）→ 摩擦力；同源：frictionner（摩擦）、frottement（摩擦）\ninertie	n.f.	惯性	par inertie, la voiture continue de glisser sur le verglas.	由于惯性，汽车在结冰的路面上继续滑动。	根：拉丁语 inertia（无活力，in- 无 + ars 技艺）→ 惯性；同源：inerte（惰性的）、inertiel（惯性的）\ncinétique	adj.	动能的	l'énergie cinétique dépend de la vitesse.	动能取决于速度。	根：希腊语 kinētikos（运动的，kinein 移动）→ 动力学的；同源：cinéma（电影）、kinésithérapie（运动疗法）\npotentiel	adj./n.m.	位能的/潜力	transformer l'énergie potentielle en électricité.	将势能转化为电。	根：拉丁语 potentia（力量，potens 有力的）→ 潜在的；同源：puissance（功率，力量）、pouvoir（能力，权力）\nthermique	adj.	热能的/热量的	l'isolation thermique d'un bâtiment est cruciale.	建筑的热绝缘（隔热）至关重要。	根：希腊语 thermē（热）→ 热的；同源：thermostat（恒温器）、thermomètre（温度计）\nclimatisation	n.f.	空调/环境调节	la climatisation réversible est très économe.	冷暖空调（逆变空调）非常节能。	根：希腊语 klima（气候，倾斜）→ 空调；同源：climat（气候）、climatiseur（空调设备）\nétanchéité	n.f.	密封性/不透水性	vérifier l'étanchéité des fenêtres avant l'hiver.	入冬前检查窗户的密封性。	根：法语古词 estanchier（止住，源自通俗拉丁语）→ 密封性；同源：étanche（密封的）、étancher（止渴，密封）\nfluide	n.m./adj.	流体/流动的	la mécanique des fluides.	流体力学。	根：拉丁语 fluidus（流动的，fluere 流）→ 流体；同源：fluidité（流动性）、flux（流量）\npression	n.f.	压力/压强	la pression atmosphérique chute avant l'orage.	雷雨前大气压下降。	根：拉丁语 pressio（压迫，premere 压）→ 压力；同源：presser（压）、compresser（压缩）\nturbulences	n.f.pl.	湍流/动荡	l'avion a traversé une zone de turbulences.	飞机穿过了一片湍流区。	根：拉丁语 turbulentia（混乱，turba 混乱）→ 湍流；同源：turbulent（湍流的）、trouble（浑浊的，混乱）\nvibration	n.f.	振动	les vibrations excessives peuvent fissurer le métal.	过度振动会导致金属产生裂纹。	根：拉丁语 vibratio（震动，vibrare 震动）→ 振动；同源：vibrer（振动）、vibrateur（振动器）\nrésonance	n.f.	共振	entrer en résonance avec le sol.	与地面产生共振。	根：拉丁语 resonare（回响，re- 再 + sonare 响）→ 共振；同源：résonner（回响）、son（声音）\nfréquence	n.f.	频率	régler la fréquence d'un signal radio.	调节无线电信号的频率。	根：拉丁语 frequentia（频繁，frequens 频繁的）→ 频率；同源：fréquent（频繁的）、fréquenter（常去）\namplitude	n.f.	振幅/广度	l'amplitude thermique entre le jour et la nuit.	昼夜温差（热振幅）。	根：拉丁语 amplitudo（宽广，amplus 宽的）→ 振幅；同源：ample（宽敞的）、amplifier（放大）\nonde	n.f.	波	les ondes électromagnétiques du Wi-Fi.	Wi-Fi的电磁波。	根：拉丁语 unda（波浪）→ 波；同源：ondulation（波动）、onduler（起波浪）\nrayonnement	n.m.	辐射	se protéger du rayonnement ultraviolet (UV).	保护自己免受紫外线（UV）辐射。	根：拉丁语 radius（光线，辐条）→ 辐射；同源：rayon（射线）、rayonner（辐射，发光）\nfaisceau	n.m.	光束/束	un faisceau laser de haute précision.	高精度激光束。	根：拉丁语 fascis（束，捆）→ 光束；同源：fascicule（分册）、faisceau（束）\noptique	n.f./adj.	光学(的)	la fibre optique permet le très haut débit.	光纤实现极高带宽。	根：希腊语 optikos（视觉的，ops 眼睛）→ 光学的；同源：opticien（眼镜商）、œil（眼睛，源自同一印欧词根）\nréfraction	n.f.	折射	la réfraction de la lumière dans l'eau.	光在水中的折射。	根：拉丁语 refractio（折断，re- 回 + frangere 破）→ 折射；同源：réfracter（折射）、fraction（分数）\nopacité	n.f.	不透明度	l'opacité des vitres teintées.	着色玻璃的阻光度（不透明性）。	根：拉丁语 opacitas（遮光，opacus 阴暗的）→ 不透明性；同源：opaque（不透明的）、ombre（阴影，源自相关词根）\ntranslucide	adj.	半透明的	un matériau translucide laisse passer la lumière.	半透明材料允许光线通过。	根：拉丁语 translucidus（透光的，trans- 穿过 + lucere 发光）→ 半透明的；同源：lucide（清醒的）、lumière（光）\nacoustique	adj./n.f.	声学的/音响效果	l'acoustique de cette salle de concert est parfaite.	这座音乐厅的建筑声学效果近乎完美。	根：希腊语 akoustikos（听觉的，akouein 听）→ 声学的；同源：écouter（听）、ouïe（听觉）\ninsonorisation	n.f.	隔音	l'insonorisation d'un appartement en ville.	城市公寓的隔音。	根：拉丁语 in-（否定）+ sonorus（响亮的，sonus 声音）→ 隔音；同源：sonore（响亮的）、son（声音）\ndécibel	n.m.	分贝	le seuil de douleur est de 120 décibels.	痛阈为120分贝。	根：拉丁语 decem（十）+ 人名 Bell（发明家贝尔）→ 分贝；同源：décimal（十进制的）、décimètre（分米）\naimant	n.m.	磁铁	les aimants sont utilisés dans les moteurs électriques.	磁铁被用于电动机中。	根：希腊语 adamas（钻石，坚硬物）→ 磁铁；同源：diamant（钻石）、aimanter（磁化）\nmagnétisme	n.m.	磁性/磁学	le champ de magnétisme terrestre.	地磁场。	根：希腊语 magnētis（磁石，源自小亚细亚地名 Magnēsia）→ 磁性；同源：magnétique（磁的）、aimant（磁铁）\ninduction	n.f.	感应	une plaque de cuisson à induction.	电磁感应灶（电磁炉）。	根：拉丁语 inductio（引入，in- 进入 + ducere 引导）→ 感应；同源：induire（引导，推断）、conducteur（导体）\ntension	n.f.	电压/张力	la tension électrique se mesure en volts.	电压以伏特为单位测量。	根：拉丁语 tensio（拉紧，tendere 拉伸）→ 电压；同源：tendre（拉紧）、extensible（可伸展的）\nintensité	n.f.	电流强度/强度	l'intensité lumineuse diminue avec la distance.	光强随距离增加而减弱。	根：拉丁语 intensitas（强烈，intendere 拉紧）→ 强度；同源：intense（强烈的）、tension（张力）\ncourt-circuit	n.m.	短路	un court-circuit a provoqué l'incendie.	短路引发了火灾。	不适用单词\nfusible	n.m.	保险丝	le fusible a sauté à cause d'une surcharge.	由于过载，保险丝烧断了。	根：拉丁语 fusibilis（可熔的，fundere 熔化）→ 保险丝；同源：fusion（熔化）、fondre（熔化）\ndisjoncteur	n.m.	断路器/电闸	réenclencher le disjoncteur général.	重新开启总断路器。	根：拉丁语 dis-（分开）+ jungere（连接）→ 断路器；同源：jonction（连接）、conjonction（连接词）\naccumulateur	n.m.	蓄电池	les accumulateurs au lithium des voitures.	汽车的锂电池（蓄电池）。	根：拉丁语 accumulare（堆积，ad- 向 + cumulus 堆）→ 蓄电池；同源：accumuler（积累）、cumul（累积）\nphotovoltaïque	adj.	光伏的	installer des panneaux photovoltaïques.	安装光伏电池板。	根：希腊语 phōs（光）+ 意大利物理学家 Volta（伏打）→ 光伏的；同源：photographie（摄影）、volt（伏特）\néolien	adj.	风能的	le parc éolien offshore.	离岸风力发电场。	根：希腊语 Aiolos（风神埃俄罗斯）→ 风能的；同源：éole（风神）、ventilation（通风，源自拉丁语 ventus 风）\nhydraulique	adj.	水力的/液压的	un système de freinage hydraulique.	液压制动系统。	根：希腊语 hydraulikos（水管的，hydōr 水 + aulos 管）→ 水力的；同源：hydratation（水合）、hydrologie（水文学）\nnucléaire	adj.	核能的	la fission nucléaire produit de la chaleur.	核裂变产生热量。	根：拉丁语 nucleus（核，坚果核心）→ 核能的；同源：noyau（核心）、nucléon（核子）\nfission	n.f.	核裂变	la fission de l'atome d'uranium.	铀原子的裂变。	根：拉丁语 fissio（分裂，findere 分裂）→ 裂变；同源：fissure（裂缝）、fendre（劈开）\nfusion	n.f.	核聚变/熔化	la fusion nucléaire est l'énergie des étoiles.	核聚变是恒星的能量来源。	根：拉丁语 fusio（熔化，fundere 熔化）→ 聚变；同源：fondre（熔化）、fusible（保险丝）\nradioactivité	n.f.	放射性	mesurer le taux de radioactivité.	测量放射性水平。	根：拉丁语 radius（射线）+ activus（活跃的）→ 放射性；同源：radiation（辐射）、actif（活跃的）\nconfinement	n.m.	屏蔽/封闭	l'enceinte de confinement d'un réacteur.	反应堆的压力壳（安全壳）。	根：拉丁语 confinis（接壤的，con- 共同 + finis 边界）→ 隔离；同源：confiner（限制）、frontière（边界）\ncorrosion	n.f.	腐蚀	la corrosion de l'acier par l'eau de mer.	海水对钢材的腐蚀。	根：拉丁语 corrosio（腐蚀，cor- 加强 + rodere 啃）→ 腐蚀；同源：corroder（腐蚀）、éroder（侵蚀）\noxydation	n.f.	氧化	l'oxydation de l'aluminium crée une couche protectrice.	铝的氧化会产生一层保护层。	根：希腊语 oxys（酸的）→ 氧化；同源：oxygène（氧气）、oxyde（氧化物）\nalliage	n.m.	合金	le bronze est un alliage de cuivre et d'étain.	青铜是铜和锡的合金。	根：拉丁语 alligare（绑在一起，ad- 向 + ligare 绑）→ 合金；同源：allier（结合）、lier（绑）\nmalléable	adj.	有延展性的/易塑的	l'or est un métal très malléable.	金是一种延展性极好的金属。	根：拉丁语 malleabilis（可锤打的，malleus 锤子）→ 可锻的；同源：maillet（木槌）、marteler（锤打）\nductilité	n.f.	延展性	la ductilité du cuivre permet d'en faire des fils.	铜的延性使其能被拉成电线。	根：拉丁语 ductilis（可拉的，ducere 引导）→ 延展性；同源：ductile（可延展的）、conducteur（导体）\nviscosité	n.f.	粘度	la viscosité de l'huile moteur varie avec la chaleur.	机油的黏度随热量变化。	根：拉丁语 viscositas（粘性，viscum 槲寄生胶）→ 粘度；同源：visqueux（粘稠的）、gluant（粘的）\ndensité	n.f.	密度	la densité de l'eau est de 1 g/cm3.	水的密度是 。	根：拉丁语 densitas（密集，densus 密的）→ 密度；同源：dense（密集的）、condensation（凝结）\ndilatation	n.f.	热胀/膨胀	la dilatation des rails de train en été.	夏季火车轨道的热膨胀。	根：拉丁语 dilatatio（扩张，dis- 分开 + latus 宽）→ 膨胀；同源：dilater（扩张）、large（宽的）\ncontraction	n.f.	收缩	la contraction des matériaux par le froid.	材料遇冷收缩。	根：拉丁语 contractio（收缩，con- 共同 + trahere 拉）→ 收缩；同源：contracter（收缩）、tracter（拖拉）\nporosité	n.f.	多孔性/渗透性	la porosité d'une pierre calcaire.	石灰岩的孔隙率。	根：希腊语 poros（通道，孔）→ 多孔性；同源：poreux（多孔的）、pore（毛孔）\nadhérence	n.f.	附着力/抓地力	les pneus hiver offrent une meilleure adhérence.	冬季轮胎提供更好的抓地力。	根：拉丁语 adhaerentia（粘附，ad- 向 + haerere 粘）→ 附着力；同源：adhérer（粘附）、adhésif（粘合剂）\nautomatisme	n.m.	自动化/自动装置	l'automatisme d'un portail de garage.	车库门的自动化。	根：希腊语 automatos（自动的，autos 自己 + maomai 努力）→ 自动化；同源：automatique（自动的）、automobile（汽车）\ncapteur	n.m.	传感器	un capteur de mouvement pour l'alarme.	报警器的运动传感器。	根：拉丁语 captare（捕捉，capere 抓取）→ 传感器；同源：capter（捕捉）、capture（捕获）\nactionneur	n.m.	执行器	l'actionneur commande l'ouverture de la vanne.	执行器控制阀门的开启。	根：拉丁语 actio（行动，agere 做）→ 执行器；同源：action（行动）、actif（主动的）\ncircuit intégré	n.m.	集成电路	la pénurie de circuits intégrés ralentit l'industrie.	集成电路短缺减缓了工业发展。	不适用单词\nsemi-conducteur	n.m.	半导体	les semi-conducteurs sont le cœur de l'électronique.	半导体是电子设备的核心。	不适用单词\nnanotechnologie	n.f.	纳米技术	les promesses de la nanotechnologie en médecine.	纳米技术在医学领域的潜力。	根：希腊语 nanos（矮人）+ technē（技艺）+ logos（学）→ 纳米技术；同源：nanomètre（纳米）、technologie（技术）\nintelligence artificielle (IA)	n.f.	人工智能	l'IA optimise la gestion de l'énergie.	人工智能优化能源管理。	不适用单词\nalgorithme	n.m.	算法	l'algorithme ajuste le chauffage en temps réel.	算法实时调节供暖。	根：阿拉伯数学家 Al-Khwarizmi（花拉子米）名字拉丁化→ 算法；同源：algèbre（代数）、chiffre（数字，源自阿拉伯语）\ndomotique	n.f.	智能家居技术	la domotique facilite la vie des personnes âgées.	智能家居方便了老年人的生活。	根：拉丁语 domus（房屋）+ automatique（自动的）→ 家庭自动化；同源：domicile（住所）、domestique（家用的）\nergonomie	n.f.	人机工程学/工效学	l'ergonomie d'une chaise de bureau.	办公椅的人体工程学。	根：希腊语 ergon（工作）+ nomos（法则）→ 人体工程学；同源：énergie（能量）、économie（经济）\nprototype	n.m.	原型/样机	tester le prototype d'un véhicule autonome.	测试无人驾驶汽车的原型。	根：希腊语 prōtotupos（原型，prōtos 第一 + tupos 类型）→ 原型；同源：protocole（协议）、type（类型）\nmaquette	n.f.	模型	une maquette numérique en 3D.	3D数字模型。	根：意大利语 macchietta（小斑点，macchia 斑点）→ 模型；同源：maculer（弄脏）、immaculé（无瑕的）\nsouder	v.t.	焊接	souder deux composants sur une carte mère.	在主板上焊接两个组件。	根：拉丁语 solidare（使坚固，solidus 坚固的）→ 焊接；同源：soudure（焊接）、solide（固体的）\nriveter	v.t.	铆接	les plaques d'aluminium sont rivetées.	铝板是用铆钉连接的。	根：古法语 river（固定，源自通俗拉丁语）→ 铆接；同源：rivet（铆钉）、rive（岸，源自相关词根）\nmoulage	n.m.	模制/铸造	le moulage par injection de plastique.	塑料注塑成型。	根：拉丁语 modulus（小模型，modus 方式）→ 铸造；同源：moule（模具）、modèle（模型）\nusinage	n.m.	机械加工	l'usinage de pièces de précision.	精密零件的机械加工。	根：拉丁语 usus（使用）→ 机加工；同源：usine（工厂）、usage（使用）\ntolérance	n.f.	公差/容许偏差	une tolérance de fabrication d'un millième.	千分之一的制造公差。	根：拉丁语 tolerantia（忍受，tolerare 忍受）→ 公差；同源：tolérer（容忍）、tolérant（宽容的）\nnorme	n.f.	标准	respecter les normes de sécurité européennes.	遵守欧洲安全标准。	根：拉丁语 norma（规矩，木工角尺）→ 标准；同源：normal（正常的）、normaliser（标准化）\nhomologation	n.f.	认证/认可	obtenir l'homologation pour circuler.	获得行驶认证。	根：希腊语 homologos（一致的，homos 相同 + logos 言）→ 认证；同源：homologue（对应物）、homogène（均匀的）\nrendement	n.m.	效率	le rendement énergétique d'un moteur.	发动机的能量效率。	根：古法语 rendre（归还，源自拉丁语 reddere）→ 效率；同源：rendre（归还）、rente（收益）\ndéperdition	n.f.	损耗/流失	éviter les déperditions de chaleur par le toit.	避免热量通过屋顶流失。	根：拉丁语 deperdere（失去，de- 离开 + perdere 失去）→ 损耗；同源：perdre（失去）、perte（损失）\nfrottement	n.m.	摩擦	le frottement génère de la chaleur.	摩擦产生热量。	根：古法语 froter（摩擦，源自拉丁语 fricare）→ 摩擦；同源：frotter（摩擦）、friction（摩擦力）\nengrenage	n.m.	齿轮装置	les engrenages d'une montre mécanique.	机械表的齿轮。	根：古法语 en-（使成）+ grain（齿，源自拉丁语 granum 谷粒）→ 齿轮传动；同源：grain（颗粒）、grener（成粒）\npoulie	n.f.	滑轮	utiliser une poulie pour soulever une charge.	使用滑轮抬起重物。	根：希腊语 polos（轴，极点）→ 滑轮；同源：pôle（极点）、polaire（极地的）\nlevier	n.m.	杠杆	l'effet de levier démultiplie la force.	杠杆效应可以成倍增加力量。	根：拉丁语 levare（举起，levis 轻的）→ 杠杆；同源：lever（举起）、élever（抬高）\ncouple	n.m.	扭矩/力矩	le couple moteur permet une forte accélération.	发动机扭矩可实现强劲加速。	根：拉丁语 copula（连接，co- 共同 + apere 系）→ 力矩；同源：coupler（联结）、accoupler（配对）\nvitesse de rotation	n.f.	转速	la vitesse de rotation se mesure en tours par minute.	转速以每分钟转数（RPM）测量。	不适用单词\npuissance	n.f.	功率	la puissance nominale d'un appareil.	设备的额定功率。	根：拉丁语 potentia（力量，potens 有力的）→ 功率；同源：pouvoir（能够）、potentiel（潜在的）\nconsommation	n.f.	能耗	réduire sa consommation d'eau.	减少用水量。	根：拉丁语 consummare（完成，con- 完全 + summa 总和）→ 消耗；同源：consommer（消费）、somme（总和）\nautonomie	n.f.	续航能力	l'autonomie d'une batterie de smartphone.	智能手机电池的续航力。	根：希腊语 autonomia（自治，autos 自己 + nomos 法则）→ 自主性；同源：autonome（自主的）、automobile（汽车）\nrechargeable	adj.	可充电的	utiliser des piles rechargeables.	使用充电电池。	根：拉丁语 re-（再）+ carricare（装载，carrus 车）→ 可充电的；同源：recharger（充电）、charger（装载）\nobsolescence	n.f.	过时/报废	lutter contre l'obsolescence programmée.	打击计划性报废。	根：拉丁语 obsolescere（废弃，ob- 离开 + solere 习惯）→ 过时；同源：obsolète（过时的）、désuet（废弃的）\nmaintenance	n.f.	维护/保养	faire la maintenance préventive de la chaudière.	对锅炉进行预防性维护。	根：拉丁语 manu tenere（手持，manus 手 + tenere 持）→ 维护；同源：maintenir（维持）、tenir（持有）\ndépannage	n.m.	维修/故障排除	appeler un service de dépannage informatique.	联系IT维修服务。	根：法语 dé-（去除）+ panne（故障）→ 维修；同源：panne（故障）、dépanner（修理）\nfiabilité	n.f.	可靠性	la fiabilité d'un système de freinage.	制动系统的可靠性。	根：拉丁语 fides（信任）→ 可靠性；同源：fiable（可靠的）、confiance（信心）\ndéfaillance	n.f.	失灵/故障	une défaillance technique a causé l'arrêt.	技术故障导致了停机。	根：拉丁语 defallere（缺乏，de- 离开 + fallere 欺骗）→ 故障；同源：faillir（失败）、faillite（破产）\nanomalie	n.f.	异常	détecter une anomalie dans le signal.	检测信号中的异常。	根：希腊语 anōmalia（不规则，an- 无 + homalos 平的）→ 异常；同源：anormal（异常的）、anomal（反常的）\nusure	n.f.	磨损	l'usure naturelle des pneus.	轮胎的自然磨损。	根：拉丁语 usura（使用，uti 使用）→ 磨损；同源：user（磨损）、usage（使用）\nfuite	n.f.	泄漏	colmater une fuite de gaz.	堵住燃气泄漏口。	根：拉丁语 fugere（逃跑）→ 泄漏；同源：fuir（逃跑）、fugitif（逃亡的）\ngazoduc	n.m.	天然气管道	l'entretien des gazoducs internationaux.	国际天然气管道的维护。	根：法语 gaz（气体）+ 拉丁语 ductus（引导，ducere 引导）→ 天然气管道；同源：gaz（气体）、conduite（管道）\noléoduc	n.m.	输油管道	le tracé d'un nouvel oléoduc.	新输油管道的线路。	根：拉丁语 oleum（油）+ ductus（引导）→ 输油管道；同源：oléagineux（含油的）、huile（油）\nréseau	n.m.	网络/电网	la stabilité du réseau électrique.	电网的稳定性。	根：拉丁语 retis（网）→ 网络；同源：filet（网）、réticulaire（网状的）\ntension	n.f.	电压	la haute tension (HT).	高压（HT）。	根：拉丁语 tensio（拉紧，tendere 拉伸）→ 电压；同源：tendre（拉紧）、extensible（可伸展的）\ntransformateur	n.m.	变压器	le transformateur ronronne dans la rue.	变压器在街上发出嗡嗡声。	根：拉丁语 trans-（越过）+ formare（形成）→ 变压器；同源：transformer（转换）、forme（形式）\ninfrastructure	n.f.	基础设施	moderniser les infrastructures de transport.	现代化交通基础设施。	根：拉丁语 infra（下面）+ structura（建造，struere 建）→ 基础设施；同源：structure（结构）、construire（建造）\nlogistique	n.f.	物流/后勤	la logistique du dernier kilomètre.	“最后一公里”物流。	根：希腊语 logistikos（计算的，logizesthai 计算）→ 物流；同源：logis（住所）、loger（住宿）\ntélémétrie	n.f.	遥测	la télémétrie d'une voiture de course.	赛车的遥测技术。	根：希腊语 tēle（远）+ metron（测量）→ 遥测；同源：téléphone（电话）、métrique（度量的）\ngyroscope	n.m.	陀螺仪	le gyroscope stabilise le drone.	陀螺仪使无人机保持稳定。	根：希腊语 gyros（圆圈）+ skopein（观察）→ 陀螺仪；同源：giratoire（旋转的）、microscope（显微镜）\naccéléromètre	n.m.	加速计	l'accéléromètre détecte la chute du téléphone.	加速计检测手机的跌落。	根：拉丁语 accelerare（加速，ad- 向 + celer 快）+ 希腊语 metron（测量）→ 加速度计；同源：accélérer（加速）、célérité（速度）\npesanteur	n.f.	重力	l'apesanteur (absence de pesanteur).	失重（无重力状态）。	根：拉丁语 pensare（称重，pendere 悬挂）→ 重力；同源：peser（称重）、poids（重量）\norbite	n.f.	轨道	mettre un satellite en orbite.	将卫星送入轨道。	根：拉丁语 orbita（轨道，orbis 圆）→ 轨道；同源：orbe（球体）、orbital（轨道的）\npropulsion	n.f.	推进	la propulsion par réaction.	反作用力推进（喷气推进）。	根：拉丁语 propulsio（推动，pro- 向前 + pellere 推）→ 推进；同源：propulser（推进）、repousser（推回）\naérodynamisme	n.m.	空气动力学设计	l'aérodynamisme réduit la consommation.	空气动力学外形减少了油耗。	根：希腊语 aēr（空气）+ dynamis（力量）→ 空气动力学；同源：aérien（空中的）、dynamique（动力的）\nsustentation	n.f.	升力/支撑	la sustentation magnétique d'un train.	火车的磁悬浮。	根：拉丁语 sustentare（支撑，sub- 下面 + tenere 持）→ 升力；同源：sustenter（支撑）、soutenir（支持）\nvitesse supersonique	n.f.	超音速	franchir le mur du son à vitesse supersonique.	以超音速突破音障。	不适用单词\nthermodynamique	n.f.	热力学	les lois de la thermodynamique.	热力学定律。	根：希腊语 thermē（热）+ dynamis（力量）→ 热力学；同源：thermique（热的）、dynamique（动力学）\nconvection	n.f.	对流	le chauffage par convection.	对流供暖。	根：拉丁语 convectio（搬运，con- 共同 + vehere 运）→ 对流；同源：vecteur（载体）、véhicule（车辆）\nconduction	n.f.	传导	la conduction de la chaleur dans un métal.	金属中的热传导。	根：拉丁语 conductio（引导，con- 共同 + ducere 引导）→ 传导；同源：conducteur（导体）、conduire（引导）\névaporation	n.f.	蒸发	l'évaporation refroidit la surface.	蒸发冷却表面。	根：拉丁语 evaporatio（蒸发，e- 出 + vapor 蒸汽）→ 蒸发；同源：vapeur（蒸汽）、évaporer（蒸发）\ncondensation	n.f.	凝结	la condensation sur les vitres.	玻璃上的冷凝水。	根：拉丁语 condensatio（浓缩，con- 共同 + densus 密）→ 凝结；同源：condenser（凝缩）、dense（密集的）\nfusion	n.f.	熔化/聚变	le point de fusion de la glace (0∘C).	冰的熔点（）。	根：拉丁语 fusio（熔化，fundere 熔化）→ 熔化；同源：fondre（熔化）、fusible（保险丝）\nébullition	n.f.	沸腾	l'eau atteint son point d'ébullition.	水达到沸点。	根：拉丁语 ebullitio（沸腾，e- 出 + bullire 冒泡）→ 沸腾；同源：bouillir（煮沸）、bouillon（肉汤）\nsolidification	n.f.	凝固	la solidification du magma.	岩浆的凝固。	根：拉丁语 solidus（坚固的）+ facere（做）→ 凝固；同源：solide（固体）、solidifier（凝固）\nsublimation	n.f.	升华	la sublimation de la neige carbonique.	干冰的升华。	根：拉丁语 sublimatio（升华，sub- 下 + limen 门槛）→ 升华；同源：sublime（崇高的）、sublimer（升华）\nviscosité	n.f.	粘度	un fluide à haute viscosité.	高黏度流体。	根：拉丁语 viscositas（粘性，viscum 槲寄生胶）→ 粘度；同源：visqueux（粘稠的）、gluant（粘的）\nélasticité	n.f.	弹性	l'élasticité d'un ressort.	弹簧的弹性。	根：希腊语 elastikos（可推动的，elaunein 推动）→ 弹性；同源：élastique（弹性的）、élastomère（弹性体）\nplasticité	n.f.	塑性	la plasticité de l'argile.	黏土的塑性。	根：希腊语 plastikos（可塑的，plassein 塑造）→ 可塑性；同源：plastique（塑料）、plâtre（石膏）\nfragilité	n.f.	脆性	la fragilité du verre trempé.	钢化玻璃的脆性。	根：拉丁语 fragilitas（易碎，frangere 破）→ 脆性；同源：fragile（易碎的）、fraction（分数）\ndureté	n.f.	硬度	l'échelle de Mohs mesure la dureté.	莫氏硬度计测量硬度。	根：拉丁语 duritia（硬度，durus 硬的）→ 硬度；同源：dur（硬的）、durcir（变硬）\nrésilience	n.f.	韧性/抗冲击性	la résilience d'un matériau composite.	复合材料的韧性。	根：拉丁语 resilire（弹回，re- 回 + salire 跳）→ 韧性；同源：résilient（有韧性的）、saillir（突出）\nisoler	v.t.	隔离/绝缘	isoler les câbles électriques.	绝缘电缆。	根：意大利语 isolare（隔离，拉丁语 insula 岛）→ 隔离；同源：isolement（隔离）、île（岛）\nétanchéifier	v.t.	使密封	étanchéifier une toiture.	对屋顶进行防水处理。	根：法语古词 estanchier（止住）+ -fier（使）→ 密封；同源：étanche（密封的）、étanchéité（密封性）\nventilation	n.f.	通风	une bonne ventilation évite l'humidité.	良好的通风可避免潮湿。	根：拉丁语 ventilatio（扇风，ventus 风）→ 通风；同源：ventiler（通风）、vent（风）\népuration	n.f.	净化	une station d'épuration des eaux.	污水处理站。	根：拉丁语 epurare（净化，e- 出 + purus 纯）→ 净化；同源：épurer（净化）、pur（纯的）\nfiltration	n.f.	过滤	la filtration de l'air ambiant.	环境空气过滤。	根：拉丁语中世纪词 filtrum（毡，日耳曼语源）→ 过滤；同源：filtre（过滤器）、filtrer（过滤）\ndistillation	n.f.	蒸馏	la distillation du pétrole brut.	原油的蒸馏。	根：拉丁语 distillatio（滴下，de- 下 + stillare 滴）→ 蒸馏；同源：distiller（蒸馏）、instiller（灌输）\nélectrolyse	n.f.	电解	l'électrolyse de l'eau pour produire de l'hydrogène.	电解水生产氢气。	根：希腊语 ēlektron（琥珀）+ lysis（分解）→ 电解；同源：électricité（电）、analyser（分析）\ncorrosion	n.f.	腐蚀	protéger contre la corrosion.	防止腐蚀。	根：拉丁语 corrosio（腐蚀，cor- 加强 + rodere 啃）→ 腐蚀；同源：corroder（腐蚀）、éroder（侵蚀）\nabrasion	n.f.	磨损/磨蚀	résister à l'abrasion du sable.	抵抗沙子的磨损。	根：拉丁语 abrasio（磨损，ab- 离开 + radere 刮）→ 磨损；同源：abraser（磨损）、raser（剃）\nincandescence	n.f.	白炽/白热	une ampoule à incandescence.	白炽灯泡。	根：拉丁语 incandescere（发白热，in- 进入 + candere 发光）→ 白炽；同源：candide（纯白的）、chandelle（蜡烛）\nluminescence	n.f.	发光	la luminescence des LED.	LED的发光。	根：拉丁语 lumen（光）+ -escence（成为）→ 发光；同源：lumineux（发光的）、lumière（光）\nfluorescence	n.f.	荧光	un tube à fluorescence.	荧光灯管。	根：拉丁语 fluor（萤石）+ -escence（成为）→ 荧光；同源：fluor（氟）、fluoré（含氟的）\nphosphorescence	n.f.	磷光	des aiguilles de montre phosphorescentes.	夜光表针（磷光）。	根：希腊语 phōsphoros（带光者，phōs 光 + pherein 带）→ 磷光；同源：phosphore（磷）、photographie（摄影）\nréflexion	n.f.	反射	la réflexion du son sur les parois.	声音在墙壁上的反射。	根：拉丁语 reflexio（反射，re- 回 + flectere 弯）→ 反射；同源：réfléchir（反射）、fléchir（弯曲）\ndiffraction	n.f.	衍射	la diffraction de la lumière.	光的衍射。	根：拉丁语 diffractio（破碎，dis- 分开 + frangere 破）→ 衍射；同源：fraction（分数）、fracturer（折断）\ninterférence	n.f.	干扰/干涉	les interférences électromagnétiques.	电磁干扰。	根：拉丁语 interferere（介入，inter- 之间 + ferire 打）→ 干涉；同源：interférer（干涉）、différer（不同）\nspectre	n.m.	光谱	le spectre de la lumière visible.	可见光光谱。	根：拉丁语 spectrum（形象，specere 看）→ 光谱；同源：spectacle（景象）、inspecter（检查）\nlongueur d'onde	n.f.	波长	une longueur d'onde courte.	短波长。	不适用单词\npériode	n.f.	周期	la période d'oscillation.	振荡周期。	根：希腊语 periodos（周期，peri- 周围 + hodos 路）→ 周期；同源：périodique（周期的）、épisode（插曲）\nvitesse	n.f.	速度	la vitesse de la lumière (c≈300000 km/s).	光速（）。	根：拉丁语 velocitas（速度，velox 快的）→ 速度；同源：vélocité（速度）、vélo（自行车）\naccélération	n.f.	加速度	l'accélération de la pesanteur (g).	重力加速度（）。	根：拉丁语 acceleratio（加速，ad- 向 + celer 快）→ 加速度；同源：accélérer（加速）、célérité（速度）\nforce	n.f.	力	la force centrifuge.	离心力。	根：拉丁语 fortia（力量，fortis 强的）→ 力；同源：fort（强的）、fortifier（加强）\ngravité	n.f.	重力	la loi de la gravité universelle.	万有引力定律。	根：拉丁语 gravitas（重量，gravis 重的）→ 重力；同源：grave（严重的）、aggraver（加重）\nmasse	n.f.	质量	la masse volumique d'un métal.	金属的密度（单位体积质量）。	根：希腊语 maza（面团）→ 质量；同源：massif（大块的）、amas（堆）\npoids	n.m.	重量	le poids varie selon la planète.	重量随行星不同而变化。	根：拉丁语 pensum（重量，pendere 称）→ 重量；同源：peser（称重）、pensée（思想）\nvolume	n.m.	体积	le volume d'un réservoir.	容器的体积。	根：拉丁语 volumen（卷，volvere 滚）→ 体积；同源：volute（螺旋）、révolution（旋转）\nsurface	n.f.	表面积	une grande surface de contact.	巨大的接触面积。	根：拉丁语 superficies（表面，super- 上 + facies 面）→ 表面；同源：superficie（面积）、face（脸）\ndimension	n.f.	尺寸/维度	un objet en quatre dimensions.	四维物体。	根：拉丁语 dimensio（测量，dis- 分开 + metiri 测）→ 尺寸；同源：mesurer（测量）、métrique（度量的）\nproportion	n.f.	比例	respecter les proportions.	尊重比例。	根：拉丁语 proportio（比例，pro- 向前 + portio 部分）→ 比例；同源：proportionnel（成比例的）、portion（部分）\néchelle	n.f.	比例尺/规模	travailler à petite échelle.	小比例工作。	根：拉丁语 scala（梯子）→ 比例尺；同源：escalier（楼梯）、escalader（攀登）\nmesure	n.f.	测量	une unité de mesure.	计量单位。	根：拉丁语 mensura（测量，metiri 测）→ 测量；同源：mesurer（测量）、dimension（尺寸）\nétalonnage	n.m.	校准	l'étalonnage d'un thermomètre.	温度计的校准。	根：法语 étalon（标准，源自日耳曼语）→ 校准；同源：étalon（标准）、étaler（展开）\nprécision	n.f.	精确度	un instrument de haute précision.	高精度仪器。	根：拉丁语 praecisio（切断，prae- 前 + caedere 切）→ 精度；同源：précis（精确的）、incision（切口）\nmarge d'erreur	n.f.	误差范围	une faible marge d'erreur.	微小的误差幅度。	不适用单词\nincertitude	n.f.	不确定度	l'incertitude de Heisenberg.	海森堡不确定性。	根：拉丁语 incertitudo（不确定，in- 否定 + certus 确定）→ 不确定度；同源：certain（确定的）、certitude（确定性）\nprobabilité	n.f.	概率	une forte probabilité de succès.	成功的可能性很大。	根：拉丁语 probabilitas（可能性，probare 证明）→ 概率；同源：probable（可能的）、prouver（证明）\nstatistique	n.f.	统计	les statistiques de production.	生产统计数据。	根：拉丁语 statisticus（国家的，status 状态）→ 统计；同源：statut（地位）、état（状态）\ndonnées	n.f.pl.	数据	traiter des données complexes.	处理复杂数据。	根：拉丁语 datum（给定的，dare 给）→ 数据；同源：donner（给）、date（日期）\nvariable	n.f.	变量	une variable indépendante.	自变量。	根：拉丁语 variabilis（可变的，variare 变化）→ 变量；同源：varier（变化）、variation（变化）\nconstante	n.f.	常数	la constante de Planck (h).	普朗克常数（）。	根：拉丁语 constantia（稳定，con- 共同 + stare 站）→ 常数；同源：constant（恒定的）、stable（稳定的）\néquation	n.f.	方程	résoudre une équation du second degré.	解一元二次方程。	根：拉丁语 aequatio（相等，aequare 使相等）→ 方程；同源：égal（相等的）、égalité（平等）\nformule	n.f.	公式	la formule chimique de l'eau (H2​O).	水的化学式（）。	根：拉丁语 formula（小形式，forma 形式）→ 公式；同源：forme（形式）、formuler（表述）\nthéorie	n.f.	理论	la théorie de la relativité.	相对论。	根：希腊语 theōria（观察，theōrein 观看）→ 理论；同源：théorique（理论的）、théâtre（剧院）\nhypothèse	n.f.	假设	émettre une hypothèse.	提出假设。	根：希腊语 hypothesis（假设，hypo- 下 + thesis 放置）→ 假设；同源：thèse（论文）、synthèse（综合）\nexpérience	n.f.	实验	mener une expérience en laboratoire.	在实验室进行实验。	根：拉丁语 experientia（经验，experiri 尝试）→ 实验；同源：expérimenter（实验）、expert（专家）\nlaboratoire	n.m.	实验室	un laboratoire de recherche.	研究实验室。	根：拉丁语 laboratorium（工作场所，laborare 工作）→ 实验室；同源：labeur（劳动）、élaborer（详细制定）\nchercheur	n.m.	研究员	les chercheurs du CNRS.	法国国家科学研究中心（CNRS）的研究员。	根：拉丁语 circare（环绕，circus 圆圈）→ 研究员；同源：chercher（寻找）、recherche（研究）\ningénieur	n.m.	工程师	un ingénieur en aéronautique.	航空工程师。	根：拉丁语 ingenium（才能，天赋）→ 工程师；同源：ingénieux（巧妙的）、génie（天才）\ntechnicien	n.m.	技术员	le technicien de maintenance.	维修技术员。	根：希腊语 technē（技艺）→ 技术员；同源：technique（技术）、technologie（技术学）\ninnovation	n.f.	创新	le moteur de l'innovation.	创新的引擎。	根：拉丁语 innovatio（更新，in- 进入 + novus 新）→ 创新；同源：innover（创新）、nouveau（新的）\ndécouverte	n.f.	发现	une découverte scientifique majeure.	重大的科学发现。	根：拉丁语 dis-（去除）+ cooperire（覆盖）→ 发现；同源：découvrir（发现）、couvrir（覆盖）\ninvention	n.f.	发明	l'invention de l'imprimerie.	印刷术的发明。	根：拉丁语 inventio（发明，in- 进入 + venire 来）→ 发明；同源：inventer（发明）、venir（来）\nbrevet	n.m.	专利	protéger une invention par un brevet.	通过专利保护发明。	根：拉丁语 brevis（短的）→ 专利；同源：bref（简短的）、abréger（缩短）\nprogrès	n.m.	进步	le progrès technologique.	技术进步。	根：拉丁语 progressus（前进，pro- 向前 + gradi 走）→ 进步；同源：progresser（进步）、grade（等级）\navenir	n.m.	未来	les technologies de l'avenir.	未来技术。	根：拉丁语 advenire（到来，ad- 向 + venire 来）→ 未来；同源：advenir（发生）、venir（来）");
+	
+
+
+	document.getElementById("testarea").innerHTML = window.screen.width;
+</script>
+
+
+
+<deepl-input-controller><template shadowrootmode="open"><link rel="stylesheet" href="chrome-extension://cofdbpoegempjloogbagkncekinflcnj/build/content.css"><div dir="ltr"><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller></body></html>

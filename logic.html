@@ -1,0 +1,1071 @@
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<!-- saved from url=(0041)https://www.budingparis.com/tests/VT.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<script type="text/javascript">
+// levels constents
+var INIT_LEVEL = 50;
+var MAX_LEVEL = 100;
+
+// list size definition
+var MAX_CRT_SIZE = 10;
+var ERROR_SIZE = 3;
+
+// repeat time définitions
+var MAX_CORRECT_TM = 20;
+var MAX_REPEAT_ERROR = 3;
+var NEED_CORRECT_TM = 4;
+var NEED_RECORRECT_TM = 3;
+var ERROR_WAIT_LENGTH = 4;
+
+var STATUT_WATTING = 1;
+var STATUT_CRT = 2;
+var STATUT_ERROR = 3;
+var STATUT_FINISHED = 4;
+
+var SHOW_LIST = true;
+
+// list functions
+// return if arr contient findValue
+function contains(arr, findValue){
+	for(var i=0; i<arr.length; i++){
+		if(arr[i]==findValue){
+			return true;
+		}
+	}
+	return false;
+}
+function removeValue(list, value){
+	for(i in list){
+		if(list[i] == value){
+			list.splice(i, 1);
+		}
+	}	
+}
+
+
+// random 0 to n-1, ratio i / i+1 = d 
+function randomRatio(n, d){// alert(currentList.length + ", " + n + "," + d)
+	if(d==1){
+		return random(n);
+	}
+	var N = (Math.pow(d, n)-1);
+	var r = N + 1 - Math.random() * N;
+	return n - Math.ceil(Math.log(r) / Math.log(d));
+}
+
+// random 0 to n-1
+function random(n){
+	return Math.floor(Math.random()*n);
+}
+
+// lists
+var waitingList;
+var finishedList;
+var currentList;
+var errorList;
+function initEmptyLists(){
+	waitingList = new Array();
+	finishedList = new Array();
+	currentList = new Array();
+	errorList = [emptyWordId(), emptyWordId(), emptyWordId()];
+
+}
+
+function emptyWordId(){
+	return -(random(1000)+1000);
+}
+
+function isEmptyWordId(i){
+	return i<0;
+}
+
+function isValidWordId(i){
+	return i>=0 && i< words.length;
+}
+
+function initLists(){
+	initEmptyLists();
+
+	for(var i=0; i<words.length; i++){
+		toWaitting(i);
+	}
+
+	for(var i=0; i<MAX_CRT_SIZE; i++){
+		if(waitingList.length==0){
+			break;
+		}
+		r = random(waitingList.length);
+		toCurrent(waitingList.splice(r, 1)[0]);
+	}
+}
+
+// functions that set value i into a list
+function changeToList(i, list, statut, pos){	
+	// remove if already exist
+	removeValue(waitingList, i);
+	removeValue(currentList, i);
+	removeValue(errorList, i);
+	removeValue(finishedList, i);
+
+	if(pos==null || list.length<pos){
+		list.push(i);
+	}else{
+		list.splice(pos, 0, i);
+	}
+	if(isValidWordId(i) && (statut==STATUT_WATTING || words[i].statut != STATUT_FINISHED)){
+		words[i].statut = statut;
+	}
+}
+
+function toWaitting(i){
+	if(!isEmptyWordId(i) && words[i].statut != STATUT_WATTING){
+		words[i].totalCorrectCt = 0;
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, waitingList, STATUT_WATTING);
+}
+
+function toCurrent(i, pos){
+	if(isValidWordId(i) && words[i].statut != STATUT_CRT){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, currentList, STATUT_CRT, pos);
+}
+
+function toError(i){
+	if(isValidWordId(i) && words[i].statut != STATUT_ERROR){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, errorList, STATUT_ERROR);
+	if( errorList.length > ERROR_SIZE){
+		for(i=errorList.length; i>=0; i--){
+			if(isEmptyWordId(errorList[i])){
+				errorList.splice(i, 1);
+				break;
+			}
+		}
+	}
+}
+
+function toFinished(i){
+	changeToList(i, finishedList, STATUT_FINISHED);
+}
+
+// affichage functions
+function affLists(){
+	showList(waitingList, "waiting_div");
+	showList(finishedList, "finished_div");
+	showList(currentList, "current_div");
+	showList(errorList, "error_div");
+	document.getElementById("aff").style.display = SHOW_LIST ? "block" : "none";
+}
+
+function showList(list, divId){
+	var div = document.getElementById(divId);
+	div.innerHTML = "";
+	for(var i=0; i<list.length; i++){
+		div.innerHTML += getWordAff(list[i]);
+	}
+}
+
+function getWordAff(i){
+	if(isValidWordId(i)){
+		var word = words[i];
+		colorCode = getColorCode(word.level)
+		var selectedword = (i==SELECTED_WORD_ID)?" crtword" : "";
+		var finishedword = (word.statut==STATUT_FINISHED)?" finishedword" : "";
+		return '<div class="affword'+ selectedword + finishedword + '" style="background-color:'+colorCode+'">'
+				+ getIndiceBlock("error", MAX_REPEAT_ERROR, word.repeatErrCt)
+				+ (
+					word.statut==STATUT_ERROR 
+					? getIndiceBlock("recorect", NEED_RECORRECT_TM, word.correctCt) 
+					: getIndiceBlock("correct", NEED_CORRECT_TM, word.correctCt) 
+				)
+				+ getIndiceBlock("total", MAX_CORRECT_TM, word.totalCorrectCt)
+				+ word.word +'</div>\n';
+	}else{
+		return '<div class="affword_null" style="background-color:white">&nbsp;</div>\n';
+	}
+}
+
+function getIndiceBlock(name, total, value){
+	var spanHtml = '\n<span class="indice_b b_' + name + '">';	
+	var name_point = name;
+	if( (name=="total" && total > 20) || (name!="total" && total > 5)){
+		name_point += "_small";
+	}
+
+	for(var i=0; i<total; i++){
+		if(i<value){
+        	spanHtml += '\n  <span class="indice_v '+name_point+'"></span>'
+		}else{
+			spanHtml += '\n  <span class="indice_t '+name_point+'"></span>'
+		}
+	}
+    spanHtml += '\n</span>\n';
+	return spanHtml;
+        		
+}
+
+function getColorCode(level){
+	var level = (level-1)
+	if(level<1){
+		level=1;
+	}
+	level = Math.floor(100/level)+155;
+
+	var a=level.toString(16);
+	return "#"+a+a+a;
+}
+
+var words=[];
+
+
+function hideButtons(divId){
+	document.getElementById(divId).style.display="none";
+}
+
+function showButtons(divId){
+	document.getElementById(divId).style.display= (divId=="btndiv_3" || divId=="btndiv_4") ? "inline-block" : "inline-block";
+}
+
+function showStartButtonsByCondition(){
+	if(words==null || words.length <=0 ){
+		hideButtons("btndiv_3");
+	}else{
+		showButtons("btndiv_3");
+	}
+
+}
+
+function getSeparator(){
+	var radios = document.getElementsByName("separator");
+	for(var i=0; i<radios.length; i++){
+		if(radios[i].checked){
+			return radios[i].value;
+		}
+	}
+	return ",";
+}
+
+function load(){
+	var inputs = document.getElementById("input_words").value;
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	words = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split(getSeparator());
+		if(params.length==2){
+			words[i]={'word':params[0],'mean':params[1],'level':INIT_LEVEL};
+		}else if(params.length==3 && params[2]!=''){
+			words[i]={'word':params[0],'mean':params[1],'level':params[2]};
+		}
+	}
+	
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function save(){
+	var saveValues = "";
+	for(var i=0; i<words.length; i++){
+		saveValues += words[i].word+getSeparator()+words[i].mean+getSeparator()+words[i].level+"\n";
+	}
+	
+	document.getElementById("input_words").value = saveValues;
+}
+
+
+
+function getQuestionField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "mean" : "word";
+}
+
+function getAnswerField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "word" : "mean";
+}
+
+function getNext(list, ratio){
+	var i = randomRatio(list.length-1, ratio);
+	// return list.splice(i, 1)[0]; // ch
+	return list[i]; 
+}
+
+var startTime;
+function start(){
+	initLists();
+	startTime = Date.now();
+	nextWord();
+}
+
+function finish(){
+	var t = Math.floor((Date.now()-startTime)/1000)
+	alert("完成 !\n用时" + Math.floor(t/60) +"m"+ (t%60) +"s");
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showButtons("btndiv_3");
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	initLists();
+	affLists();
+	save();
+}
+
+var SELECTED_WORD_ID;
+crtWordBeginTime=0;
+function nextWord(){
+	var i = getNext(errorList, 3);
+	if(isValidWordId(i)){
+		SELECTED_WORD_ID = i;
+	}else{
+		toError(i);
+		SELECTED_WORD_ID = getNext(currentList, 2);
+	}
+
+	crtWordBeginTime=new Date().getTime();
+	showQuestion();
+
+	showButtons("btndiv_1");
+	showButtons("btndiv_2");
+	hideButtons("btndiv_3");
+	showButtons("btndiv_4");
+	// hideButtons("btndiv_5");
+
+
+	affLists();
+}
+
+function showQuestion(){
+	var field = getQuestionField();
+	var question = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(question);
+	}
+
+	document.getElementById("question").innerHTML = field=="word"? ('<span class="bigger">' + question + '</span>') : question;
+	document.getElementById("answer").innerHTML="";	
+	var crtDetail = getCrtDetail();
+	if(crtDetail != null){
+		document.getElementById("detail").innerHTML = crtDetail;
+		showButtons("btndiv_5");
+	}else{
+		hideButtons("btndiv_5");
+	}
+	hideDetail();
+}
+
+function getCrtDetail(){
+	var crtWd = words[SELECTED_WORD_ID];
+	if(crtWd.example != null){
+		return '<span class="small">' + crtWd.example + "<br>" + crtWd.exampleTrans + (crtWd.src == "不适用单词" ? "" : ("<br>" + crtWd.src)) + '</span>';
+	}else{
+		return null;
+	}
+}
+
+function hideDetail(){
+	document.getElementById("detail").style.display="none";
+}
+
+function showDetail(){
+	document.getElementById("detail").style.display="block";
+}
+
+function swichDetail(){
+	if(document.getElementById("detail").style.display=="none"){
+		showDetail();
+	}else{
+		hideDetail();
+	}
+}
+
+
+function showAnswer(){
+	var field = getAnswerField();
+	var answer = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(answer);
+	}
+	document.getElementById("answer").innerHTML = field=="word"? ('<span class="bigger">' + answer + '</span>') : answer;	
+}
+
+function readCurrentWord(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.word);
+	}
+}
+
+function readCurrentDetail(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.example);
+	}
+}
+
+function onRight(){
+	updateLevel(SELECTED_WORD_ID, true);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	crtWord.totalCorrectCt++;
+	crtWord.correctCt++;
+	crtWord.repeatErrCt = 0;
+
+	if(crtWord.totalCorrectCt >= MAX_CORRECT_TM || (crtStatut==STATUT_CRT && crtWord.correctCt>=NEED_CORRECT_TM)){
+		toFinished(SELECTED_WORD_ID);
+	}else if(crtStatut==STATUT_ERROR && crtWord.correctCt>=NEED_RECORRECT_TM){
+		toCurrent(SELECTED_WORD_ID)
+	}else{
+		if(crtStatut == STATUT_ERROR){
+			toError(SELECTED_WORD_ID);
+		}else{
+			toCurrent(SELECTED_WORD_ID);
+		}
+	}
+
+	if(errorList.length < ERROR_SIZE){
+		errorList.push(emptyWordId());
+	}
+
+	while(currentList.length + validWordIdCount(errorList) < MAX_CRT_SIZE && words.length >= MAX_CRT_SIZE){
+		if(waitingList.length>0){
+			var r = random(waitingList.length);
+			toCurrent(waitingList.splice(r, 1)[0]);
+		}else if(finishedList.length>0){
+			var r = random(finishedList.length);
+			toCurrent(finishedList.splice(r, 1)[0]);
+		}
+	}
+
+	if(isAllFinished()){
+		finish();
+	}else{
+		nextWord();
+	}
+
+}
+
+function onWrong(){
+	updateLevel(SELECTED_WORD_ID, false);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	
+	crtWord.repeatErrCt++;
+	if(crtStatut==STATUT_ERROR || crtWord.repeatErrCt>=MAX_REPEAT_ERROR){
+		toError(SELECTED_WORD_ID);
+	}else{
+		toCurrent(SELECTED_WORD_ID, ERROR_WAIT_LENGTH);
+	}
+
+
+
+	nextWord();
+}
+
+function validWordIdCount(list){
+	var cnt = 0;
+	for(i in list){
+		if(isValidWordId(list[i])){
+			cnt++;
+		}
+	}
+	return cnt;
+}
+
+function isAllFinished(){
+	var cnt = 0;
+	for(i in words){
+		if(words[i].statut == STATUT_FINISHED){
+			cnt++;
+		}
+	}
+	return cnt==words.length;
+}
+
+function updateLevel(idx, res){
+	if(!res){
+		words[idx].level=MAX_LEVEL;
+	}else{
+		var tm = new Date().getTime()-crtWordBeginTime
+		words[idx].level=Math.min(Math.floor((words[idx].level+tm/1000)/2), MAX_LEVEL);
+		
+	}
+}
+
+function initOptions(){
+	initOptionSelector("OPTION_MAX_CRT_SIZE", MAX_CRT_SIZE, 6, 20);
+	initOptionSelector("OPTION_ERROR_SIZE", ERROR_SIZE, 2, 6);
+	initOptionSelector("OPTION_MAX_CORRECT_TM", MAX_CORRECT_TM, 5, 40);
+	initOptionSelector("OPTION_NEED_CORRECT_TM", NEED_CORRECT_TM, 1, 10);
+	initOptionSelector("OPTION_MAX_REPEAT_ERROR", MAX_REPEAT_ERROR, 1, 5);
+	initOptionSelector("OPTION_NEED_RECORRECT_TM", NEED_RECORRECT_TM, 1, 10);
+}
+
+function initOptionSelector(elmId, param, minV, maxV){
+	var selector = document.getElementById(elmId);
+	for(var i=minV; i<=maxV; i++){
+		selector.add(new Option(i,i, false, i==param));
+	}
+}
+
+
+function changeOption(){
+	MAX_CRT_SIZE = document.getElementById("OPTION_MAX_CRT_SIZE").value;
+	ERROR_SIZE = document.getElementById("OPTION_ERROR_SIZE").value;
+	MAX_CORRECT_TM = document.getElementById("OPTION_MAX_CORRECT_TM").value;
+	NEED_CORRECT_TM = document.getElementById("OPTION_NEED_CORRECT_TM").value;
+	MAX_REPEAT_ERROR = document.getElementById("OPTION_MAX_REPEAT_ERROR").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	SHOW_LIST = document.getElementById("OPTION_SHOW_LIST").checked;
+	affLists();	
+}
+
+// keyboard
+function handleShortcut(event) { 
+    if (event.key === "ArrowLeft") { 
+        onRight();
+        event.preventDefault(); 
+        // Votre action à effectuer lorsque la touche est enfoncée 
+    }else if(event.key === "ArrowRight"){
+        onWrong();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowUp"){
+        readCurrentWord();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowDown"){
+        showAnswer();
+        event.preventDefault(); 
+    }else if(event.key === "l"){
+        swichDetail();
+        event.preventDefault(); 
+    }else if(event.key === "o"){
+        readCurrentDetail();
+        event.preventDefault(); 
+    }
+} 
+document.addEventListener("keydown", handleShortcut);
+
+
+
+// voice reader
+
+var reader_init_count = 0;
+var reader_voices;
+function waitInit(){
+	var success = false;
+	try {
+		if(window.speechSynthesis.getVoices().length>0){
+			reader_voices = window.speechSynthesis.getVoices();
+
+			initSelector("fr-FR");
+			// initSelector("zh-CN");
+			// initSelector("zh-TW");
+			success = true;
+		}
+	} catch (error) {console.error(error);}
+
+	if(success){
+		return;
+	}else if(!success && reader_init_count++<5){
+		setTimeout(waitInit,100);
+	}
+}
+
+
+function initSelector(lang){
+	var selector = document.getElementById("lang_"+lang);
+	for(i=0; i<reader_voices.length; i++){
+		if(reader_voices[i].lang==lang){
+			var option_i = new Option(reader_voices[i].name,i, false, reader_voices[i].name.includes("Google"));
+			selector.add(option_i);
+		}
+	}
+}
+
+
+function getVoice(v){
+	return reader_voices[v];
+}
+
+function speak(txt, voice){
+	try{
+		var speech = new SpeechSynthesisUtterance();
+		speech.voice = voice;
+		speech.text = txt;
+		window.speechSynthesis.speak(speech);
+	}catch (error) {}
+}
+
+function read(id, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(document.getElementById(id).value, getVoice(lang));
+}
+
+function readText(txt, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(txt, getVoice(lang));
+}
+
+
+function readWord(wd){
+	if(needRead() && reader_voices != null){
+		readText(wd, "fr-FR")
+	}
+
+}
+
+function needRead(){
+	return document.getElementById("read_option").checked;
+}
+
+function changeReadOption(){
+	document.getElementById("readCrtWdBt").disabled = !document.getElementById("read_option").checked;
+}
+
+
+var lessonsList = [];
+function loadTxt(inputs){
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	var lesson = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split("\t");
+		if(params.length==2){
+			lesson.push({'word':params[0],'mean':params[1],'level':INIT_LEVEL});
+		}else if(params.length==3 && params[2]!=''){
+			lesson.push({'word':params[0],'mean':params[1],'level':params[2]});
+		}else if(params.length==5){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4]})
+		}else if(params.length==6){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4],'src':params[5]})
+		}
+
+		if(lesson.length==42){
+			lessonsList.push(lesson);
+			lesson = new Array();
+		}
+	}
+	if(lesson.length != 0){
+		lessonsList.push(lesson);
+	}
+
+	var selector = document.getElementById("lessons");
+	for(var i=0; i<lessonsList.length; i++){
+		var option = document.createElement("option");
+		option.text = i+1;
+		selector.add(option);
+	}
+}
+
+function loadLesson(){
+	var selector = document.getElementById("lessons");
+	if(selector.value != null){
+		words = lessonsList[selector.value-1];
+		save();
+	}
+
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function nw(w, m){
+	return {'word':w,'mean':m,'level':INIT_LEVEL};
+}
+
+
+setTimeout(waitInit,100);
+
+</script>
+
+<style type="text/css">
+@media only screen and (max-width: 600px) {
+*{
+    font-family: sans-serif;
+	font-size: 30px;
+}
+
+.option_title {
+    width: 50% !important;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+#aff{
+	position: initial !important;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+
+#exe{
+	height: 900px !important;
+	position: relative;
+	width: 570px;
+}
+
+#question, #answer{
+	font-size: 40px !important;	
+	padding-top: 10px;
+	height: 200px !important;	
+}
+
+#question{
+	text-align: left;
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 7px !important;
+    padding: 5px;
+    margin: 50px 20px 0 20px !important;
+    width: 85%	 !important;
+}
+
+#detail, #detail *{
+    font-size: 15px !important;
+}
+
+.bigger{
+	font-size: 50px !important;	
+	font-weight: bold;
+}	
+
+
+#btndiv_1 button, #btndiv_2 button, #btndiv_5 button{
+	height: 100px !important;
+	width: 135px;
+	font-size: 35px !important;	
+	bottom: 10px;
+}
+
+#btndiv_1 , #btndiv_2, #btndiv_5{
+	position: absolute !important;
+	bottom: 10px;
+	width: 280px;
+}
+
+#btndiv_1 {
+	left:10px;
+	bottom:120px;
+
+}
+
+#btndiv_2 {
+	left:10px;
+}
+
+#btndiv_5 {
+	left:10px;
+	bottom:240px;
+}
+
+#input_words{
+	font-size: 25px !important;
+}
+
+}
+
+
+body{
+    font-family: sans-serif;
+}
+
+.buttons button{
+	padding:5px; 
+	margin:5px;
+	font-size: 8px;
+}
+#word{
+	font-size: 20px;
+}
+#input_words{
+	width:550px;
+	height:200px;
+	font-family: sans-serif;
+}
+#aff{
+	position: absolute;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+.list_aff{
+    min-width: 150px;
+    padding: 5px;
+    display: inline-block;	
+	vertical-align: top
+}
+
+.affword, .affword_null{
+	font-size: 12px;
+	border: 1px solid green;
+	margin: 2px 0px;
+	padding: 1px;
+    display:block;
+}
+
+.crtword{
+	border: 1px solid red !important;
+	font-weight:bold;
+}
+
+.finishedword{
+	color:#712a2a;
+	font-weight:bold;
+}
+
+
+.indice_b{
+	display: inline-block;
+    background-color: #bbbb88;
+    width: 6px;
+    float: inline-end;
+    padding: 0px 1px 1px 0px;
+    margin-left : 3px;
+}
+
+.indice_v, .indice_t{
+	display: inline-block;
+    margin: 1px 1px 0px 1px;
+    width: 5px;
+    height: 2px;
+    vertical-align: top;
+    float: inline-start;
+}
+
+.indice_t{
+	opacity:0.2;
+}
+
+.error, .error_small{
+	background-color:red;
+}
+
+.correct, .correct_small{
+	background-color:green;
+}
+
+.recorect, .recorect_small{
+	background-color:blue;
+}
+
+
+.error_small, .correct_small, .recorect_small{
+    height: 1px;
+    margin-top: 0.5px;
+}
+
+.b_total{
+	width:12px;
+}
+
+.total{
+    background-color: green;
+    width:2px;
+    margin: 1px 0px 0px 1px;
+}
+
+.total_small{
+    background-color: green;
+    width:1px;
+    margin: 0.2px 0px 0px 1px;
+}
+
+#question, #answer{
+	font-size: 25px;	
+	height: 60px;
+	padding-left:5px;
+	height: 60px;
+	padding-left:5px;
+}
+
+#question{
+	color: #bb4110;	
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 10px;
+    padding: 5px;
+    margin: 20px 0 0 20px;
+    width: 550px;
+}
+
+#answer{
+	color: #174917;	
+}
+
+
+.block{
+	margin: 20px 5px;
+	padding: 5px;
+	width: 600px;
+	border: 1px solid black;
+}
+
+.div_sep{
+	border-bottom: 1px solid black;
+	margin: 10px;
+}
+
+.option_title{
+	width: 150px;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+
+</style>
+<title>单词训练</title>
+</head>
+<body onkeypress="onKey(event)">
+
+<div>
+
+	<div class="block" id="exe">
+		<div id="detail"></div>
+		<div id="question"></div>
+		<div id="answer"></div>
+
+
+		<span id="btndiv_1" style="display: none;">
+			<button onclick="onRight();">正确←</button>
+			<button onclick="onWrong();">错误→</button>
+		</span>
+		&nbsp;&nbsp;
+		<span id="btndiv_2" style="display: none;">
+			<button onclick="showAnswer();">答案↓</button>
+			<button onclick="readCurrentWord();" id="readCrtWdBt">读音↑</button>
+		</span>
+		<span id="btndiv_5" style="display: none;">		
+			<button onclick="swichDetail();" id="detailCrtWdBt">详情L</button>
+			<button onclick="readCurrentDetail();" id="readDetailCrtWdBt">读例O</button>
+		</span>
+		
+	</div>
+	
+
+	<div class="block">
+		方向 : 
+		<input type="radio" name="direction" value="0" checked="">法 - 汉
+		&nbsp;&nbsp;
+		<input type="radio" name="direction" value="1" id="direction_inverse">汉 - 法
+		&nbsp;&nbsp;&nbsp;
+		<span id="btndiv_3" style="display: none;">
+			<button id="b_32" onclick="start();">开始</button>
+		</span>
+		<span id="btndiv_4" style="display: none;">
+			<button id="b_32" onclick="finish();">结束</button>
+		</span>
+	</div>
+
+	<div class="block">
+		<div id="lists"></div>
+		<textarea id="input_words"></textarea>
+		<br>
+		<button onclick="load();">导入单词</button>
+		<button onclick="save();">导出单词</button>
+		分隔符 : <input type="radio" name="separator" value=";" checked=""> <b>;</b>
+		&nbsp; &nbsp;
+		<input type="radio" name="separator" value=","> <b>,</b>
+	</div>
+	<div class="block">
+		<select id="lessons"></select> <button onclick="loadLesson();">导入课程</button>
+	</div>
+	
+	<div class="block">
+		<div>
+			<button onclick="waitInit()">初始化语音引擎</button>&nbsp; &nbsp;
+			法语引擎 : <select id="lang_fr-FR"><option value="0">Microsoft Hortense - French (France)</option><option value="1">Microsoft Julie - French (France)</option><option value="2">Microsoft Paul - French (France)</option><option value="9">Google français</option></select>
+		</div>
+
+		<div>
+			开启单词朗读功能<input type="checkbox" id="read_option" checked="" onchange="changeReadOption()">&nbsp; &nbsp;
+			测试文字<input type="text" id="word_fr" value="banana"><button onclick="read(&#39;word_fr&#39;, &#39;fr-FR&#39;)"> 试读 </button>
+		</div>
+	</div>
+	
+
+	<div class="block">
+		<div class="div_sep">选项 : </div>
+		<div><span class="option_title">当前列表长度 : </span><select id="OPTION_MAX_CRT_SIZE" onchange="changeOption()"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select></div>
+		<div><span class="option_title">错误列表长度 : </span><select id="OPTION_ERROR_SIZE" onchange="changeOption()"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大总正确次数 : </span><select id="OPTION_MAX_CORRECT_TM" onchange="changeOption()"><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option></select></div>
+		<div><span class="option_title">所需正确次数 : </span><select id="OPTION_NEED_CORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大重复错误次数 : </span><select id="OPTION_MAX_REPEAT_ERROR" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+		<div><span class="option_title">所需更正次数 : </span><select id="OPTION_NEED_RECORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">显示列表信息 : </span><input type="checkbox" id="OPTION_SHOW_LIST" checked="" onchange="changeOption()"></div>
+	</div>
+
+
+	<div id="aff" style="display: block;">
+		<div id="waiting_div" class="list_aff"></div>
+		<div id="current_div" class="list_aff"></div>
+		<div id="error_div" class="list_aff"><div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+</div>
+		<div id="finished_div" class="list_aff"></div>
+
+	</div>
+
+	<div id="testarea">1920</div>
+
+
+
+</div>
+<script type="text/javascript">
+	initLists();
+	affLists();	
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showStartButtonsByCondition();
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	hideDetail();
+
+	initOptions();
+	loadTxt("Causalité	n.f.	因果关系	Il ne faut pas confondre corrélation et causalité.	不应混淆相关性与因果关系。	根： causa (原因/诉讼)。同源： Cause (原因), Causer (引起/聊天), Accuser (控告)。\nCorrélation	n.f.	相关性	Existe-t-il une corrélation entre ces deux phénomènes ?	这两个现象之间存在相关性吗？	根： cum + relatus (带回/报告)。同源： Relation (关系), Relatif (相对的)。\nIncidence	n.f.	直接影响	Cette décision aura une incidence directe sur le projet.	这一决定将对项目产生直接影响。	根： in- + cadere (落下/发生)。同源： Incident (事件), Cadence (节奏), Cascade (瀑布)。\nRépercussion	n.f.	连锁反应/间接影响	Les crises lointaines ont des répercussions ici.	远方的危机在此地也有间接影响。	根： re- + percutere (打击)。同源： Percuter (碰撞), Percussion (打击乐)。\nEngendrer	v.	产生/导致	La méfiance engendre souvent des conflits.	不信任往往会引发冲突。	根： in- + generare (产生)。同源： Gendre (女婿), Genre (类型), Génération (代)。\nDécouler	v.	源于/随之而来	Sa conclusion découle logiquement de son analyse.	他的结论逻辑清晰地源自他的分析。	根： de- + colare (过滤/流)。同源： Couler (流), Couloir (走廊), Passoire (漏勺)。\nPrémisse	n.f.	前提	Si la prémisse est fausse, le raisonnement s'écroule.	如果前提错了，整个推理就会坍塌。	根： prae- + mittere (放置/发送)。同源： Mission (使命), Promesse (诺言)。\nDéduction	n.f.	推论/演绎	Par déduction, on peut deviner la suite.	通过推论，我们可以猜到后续。	根： de- + ducere (引导)。同源： Déduire (推断), Conduire (驾驶)。\nImplication	n.f.	牵连/后续影响	Quelles sont les implications de ce choix ?	这个选择会有什么样的后续影响？	根： in- + plicare (折叠)。同源： Impliquer (牵连), Pli (折痕), Complice (帮凶)。\nAboutir	v.	导致/最终达成	Cette réflexion m'a fait aboutir à cette décision.	这一番思考让我最终做出了这个决定。	根： a- + bout (末端)。同源： Bout (尽头), Bouton (按钮)。\nInhérent	adj.	固有的/内在的	Le risque est inhérent à toute innovation.	风险是任何创新所固有的。	根： in- + haerere (粘附)。同源： Adhérer (坚持), Cohérent (连贯的)。\nSous-jacent	adj.	潜在的/底层的	Quel est le problème sous-jacent ?	这里的底层（潜在）问题是什么？	根： sub- + jacere (躺/投掷)。同源： Gésir (躺/位于), Jet (喷射)。\nDéterminant	adj.	决定性的	Le facteur humain est déterminant.	人为因素是决定性的。	根： de- + terminus (界限)。同源： Terme (期限), Terminer (结束)。\nPertinence	n.f.	合理性/中肯	Je ne remets pas en cause la pertinence de ton avis.	我不质疑你意见的合理性。	根： per- + tenere (持有)。同源： Appartenir (属于), Tenir (持有)。\nCohérence	n.f.	逻辑一致性	Il y a un manque de cohérence dans son récit.	他的叙述中缺乏逻辑一致性。	根： cum + haerere (粘附)。同源： Cohésion (凝聚力)。\nParadoxe	n.m.	悖论/自相矛盾	Le paradoxe, c'est qu'il veut économiser en dépensant.	矛盾之处在于，他想通过花钱来省钱。	根： para (相反) + doxa (观点)。同源： Paradoxal (矛盾的), Orthodoxe (正统的)。\nRéciproquement	adv.	反之亦然	Je l'aide, et réciproquement, il me soutient.	我帮他，反之，他也支持我。	根： requus (向后) + proquus (向前)。同源： Réciproque (互惠的)。\nHypothèse	n.f.	假设	On part sur l'hypothèse que tout se passera bien.	我们基于“一切顺利”的假设出发。	根： hypo (在下) + thesis (放置/论点)。同源： Thèse (论文), Synthèse (综合)。\nSynthèse	n.f.	综合/总结	C'est la synthèse de tout ce qu'on a dit.	这是对我们所说内容的一个总结。	根： syn (共同) + thesis (放置)。同源： Prothèse (假体), Épithète (修饰语)。\nAboutissement	n.m.	成果/最终结果	Ce projet est l'aboutissement de deux ans d'effort.	这个项目是两年努力的最终成果。	根： a- + bout。同源： Bouture (插条), Déboucher (通开/导致)。\nCompromis	n.m.	折中/妥协	Ce plan est un bon compromis.	这个方案是一个很好的折中。	根： cum + promittere (承诺)。同源： Promesse (承诺), Compromis (妥协)。\nArbitrage	n.m.	权衡/抉择	J'ai dû faire un arbitrage entre confort et prix.	我不得不在舒适度和价格间做权衡。	根： arbiter (裁判)。同源： Arbitre (裁判员), Arbitraire (任意的)。\nContrepartie	n.f.	代价/对应物	C'est spacieux, mais la contrepartie est le prix.	空间大，但代价是价格高。	根： contra + pars (部分)。同源： Part (部分), Partager (分享)。\nAlternative	n.f.	替代方案	Nous n'avons pas vraiment d'alternative.	我们确实没有其他的替代方案了。	根： alter (另一个)。同源： Autre (其他的), Altérer (改变/损坏)。\nCritère	n.m.	准则/标准	Le prix n'est pas mon seul critère.	价格并不是我唯一的筛选标准。	根： krinein (区分/判断)。同源： Critique (评论), Crise (危机)。\nJustifier	v.	证明...合理	Le résultat justifie l'investissement.	结果证明投入是合理的。	根： justus (正义) + facere。同源： Juste (公正的), Justice (正义)。\nGlobalement	adv.	总体上	Globalement, les avantages l'emportent.	总体而言，优点超过了缺点。	根： globus (球体)。同源： Globe (地球仪), Globule (小球/血球)。\nParadoxalement	adv.	矛盾的是	Paradoxalement, plus c'est simple, plus c'est cher.	矛盾的是，越简单反而越贵。	根： para + doxa。同源： Paradoxe (悖论)。\nDivergence	n.f.	分歧/差异	Il y a une divergence d'intérêts.	存在利益分歧。	根： di- + vergere (转向)。同源： Diverger (分歧), Verge (权杖)。\nConvergence	n.f.	趋同/契合	On observe une convergence de vue.	我们观察到了观点的趋同。	根： cum + vergere。同源： Converger (汇聚)。\nAjustement	n.m.	微调	On a fait quelques ajustements au plan.	我们对计划做了一些微调。	根： ad- + justus。同源： Ajuster (调整), Justesse (准确)。\nConcrètement	adv.	具体来说	Concrètement, qu'est-ce que ça change ?	具体来说，这有什么改变？	根： cum + crescere (生长/凝聚)。同源： Concret (具体的), Croître (生长)。\nNuance	n.f.	细微差别	Il y a une nuance importante entre ces options.	这些选项间有一个重要的细微差别。	根： nubes (云)。同源： Nuancer (使有细微差别), Nuage (云)。\nRectifier	v.	纠正/调整	J'ai dû rectifier le tir rapidement.	我不得不迅速调整方向。	根： rectus (直) + facere。同源： Rectitude (正直), Direct (直接)。\nDimension	n.f.	维度/层面	Il faut prendre en compte la dimension humaine.	必须考虑到人的层面。	根： di- + metiri (测量)。同源： Mesurer (测量), Mètre (米)。\nEnjeu	n.m.	关键点/利害所在	L'enjeu est la protection de l'environnement.	关键点在于环境保护。	根： in- + jocus (游戏/玩笑)。同源： Jeu (游戏), Jouer (玩)。\nPragmatique	adj.	务实的	Il nous faut une approche pragmatique.	我们需要一种务实的方法。	根： pragma (行动/事务)。同源： Praticien (开业者/从业人员)。\nJustification	n.f.	理由/正当性	Quelle est la justification de ce retard ?	这种延迟的理由是什么？	根： justus + facere。同源： Justicier (伸张正义者)。\nFinalement	adv.	最终/归根结底	Finalement, j'ai choisi la simplicité.	最终，我选择了简单。	根： finis (边界/结束)。同源： Fin (结束), Finir (完成)。\nS'appuyer	v.	基于/依靠	Je m'appuie sur des faits précis.	我是基于准确的事实。	根： ad- + podium (支撑/高台)。同源： Appui (支撑), Podium (领奖台)。\nCrédibilité	n.f.	可信度	Cette source manque de crédibilité.	这个消息来源缺乏可信度。	根： credere (信任)。同源： Crédit (信用), Croyance (信仰)。\nPersuader	v.	说服(感性)	Il m'a persuadé du bien-fondé de son idée.	他说服了我他的想法是合理的。	根： per- + suadere (建议/甜)。同源： Suave (温和的/甜美的)。\nConvaincant	adj.	有说服力的(逻辑)	Son argument n'est pas très convaincant.	他的论点不是很有说服力。	根： cum + vincere (战胜)。同源： Vaincre (击败), Victoire (胜利)。\nAdmettre	v.	承认/接受	J'admets que j'ai pu me tromper.	我承认我可能错了。	根： ad- + mittere (发送/放置)。同源： Admission (准入), Mettre (放)。\nScepticisme	n.m.	怀疑态度	Mon scepticisme est lié au manque de preuves.	我的怀疑态度与缺乏证据有关。	根： skeptikos (观察/怀疑)。同源： Sceptique (怀疑的)。\nLégitime	adj.	合理的/正当的	Ta colère est tout à fait légitime.	你的愤怒是完全合情合理的。	根： lex (法律)。同源： Loi (法律), Loyal (忠诚的)。\nSupposer	v.	假设/猜想	On peut supposer que le projet sera retardé.	我们可以假设项目会推迟。	根： sub- + pausare (放置)。同源： Poser (放), Supposition (假设)。\nAdhésion	n.f.	认可/赞同	Le plan a suscité une large adhésion.	该计划引起了广泛认可。	根： ad- + haerere (粘附)。同源： Adhérent (成员/粘附的)。\nNuancé	adj.	有分寸的/客观的	Il a un avis très nuancé sur ce sujet.	他对这个话题有非常客观中肯的看法。	根： nubes。同源： Nue (云宵)。\nPlausible	adj.	听起来合理的	C'est une explication plausible.	这是一个听起来合理的解释。	根： plaudere (鼓掌/赞赏)。同源： Applaudir (赞扬)。\nÉmettre	v.	提出(疑虑等)	J'aimerais émettre une réserve.	我想提出一点保留意见。	根： ex- + mittere (发出)。同源： Émission (广播/发行), Mettre (放)。\nConcéder	v.	让步/姑且承认	Je te concède que ce point est vrai.	我向你让步（承认）这一点是真的。	根： cum + cedere (退让/行走)。同源： Concession (让步), Céder (放弃)。\nContestable	adj.	有争议的	Cette décision est très contestable.	这个决定是非常值得商榷的。	根： contra + testari (作证)。同源： Contester (质疑), Témoin (证人)。\nFonder	v.	建立在...基础上	Mon avis est fondé sur mon expérience.	我的看法是建立在我的经验之上的。	根： fundus (底)。同源： Fond (底部), Fondation (基础)。\nDouter	v.	怀疑	Je doute que cette solution marche.	我怀疑这个方案是否行得通。	根： dubitare (犹豫/二者之间)。同源： Doute (怀疑), Dubitatif (怀疑的)。\nAvoir raison	loc.	有道理/是对的	Tu as raison de souligner ce détail.	你强调这个细节是对的。	根： ratio (计算/理性)。同源： Raisonner (推理), Ration (定额)。\nParti pris	n.m.	偏见/预设立场	Il juge souvent avec un certain parti pris.	他评判时常带着某种偏见。	根： pars (部分) + prendere (拿)。同源： Part (部分), Prendre (拿)。\nCertitude	n.f.	确定性	Je n'ai aucune certitude à ce sujet.	我对此没有任何确定性。	根： certus (确定的)。同源： Certain (确定的), Certifier (证明)。\nIndice	n.m.	迹象/线索	C'est un indice de son mécontentement.	这是他不满的一个迹象。	根： in- + dicare (指出)。同源： Indiquer (指示), Index (索引/食指)。\nPertinent	adj.	切题的/中肯的	Ta remarque est très pertinence.	你的评论非常中肯。	根： per- + tenere。同源： Appartenance (归属)。\nPhase	n.f.	阶段	Nous sommes dans une phase de test.	我们正处于测试阶段。	根： phasis (出现/显现)。同源： Phénomène (现象), Emphase (强调)。\nTransition	n.f.	过渡	La transition se fait en douceur.	过渡正在平稳进行。	根： trans (跨越) + ire (走)。同源： Trajet (行程), Itinéraire (路线)。\nMutation	n.f.	深刻变革	Notre société est en pleine mutation.	我们的社会正在发生深刻变革。	根： mutare (改变)。同源： Muer (脱壳/变声), Mutant (变种)。\nÉvolution	n.f.	进展/演变	L'évolution de la situation est rapide.	局势的进展很快。	根： ex- + volvere (滚动)。同源： Évoluer (进化), Volume (卷/册)。\nAmorcer	v.	启动/开始	Il faut amorcer le changement maintenant.	现在必须启动变革。	根： ad- + mors (咬/鱼饵)。同源： Amorce (引信/诱饵), Morsure (咬伤)。\nCulminer	v.	达到顶峰	La crise a culminé le mois dernier.	危机在上个月达到了顶峰。	根： culmen (顶峰)。同源： Culminant (达到顶峰的)。\nDécliner	v.	衰退/下降	Ses performances commencent à décliner.	他的表现开始下降。	根： de- + clinare (弯曲)。同源： Incliner (倾向), Clinique (临床的)。\nProgressif	adj.	渐进的	Le rétablissement sera progressif.	恢复将是渐进的。	根： pro- + gradi (步)。同源： Progrès (进步), Grade (等级)。\nRupture	n.f.	断裂/转折	C'est une rupture avec le passé.	这是与过去的一种断裂。	根： rumpere (打破)。同源： Rompre (断绝), Corrompre (腐蚀)。\nÉchéance	n.f.	期限/到期	L'échéance est fixée à lundi.	期限截止到周一。	根： ex- + cadere (落下)。同源： Échoir (到期/发生), Cascade (瀑布)。\nFluctuation	n.f.	波动	Les fluctuations du marché sont normales.	市场波动是正常的。	根： fluere (流动)。同源： Flux (流量), Flou (模糊)。\nBasculer	v.	剧变/反转	Tout a basculé en un instant.	一切在一瞬间发生了剧变。	根： baculus (棍棒/支撑) + cul (臀部)。同源： Bascule (跷跷板), Débâcle (崩溃/冰解)。\nS'accentuer	v.	加剧/强化	Le problème vient de s'accentuer.	问题刚刚加剧了。	根： ad- + cantus (歌唱)。同源： Accent (口音), Chanter (唱)。\nStagner	v.	停滞不前	Les négociations semblent stagner.	谈判似乎停滞不前。	根： stagnare (静止)。同源： Stagnant (停滞的), Étang (池塘)。\nAcheminement	n.m.	进展/迈进	C'est un long acheminement vers la paix.	这是一个通往和平的漫长历程。	根： ad- + camminus (道路)。同源： Chemin (路), Cheminée (烟囱)。\nPrémices	n.f.pl.	征兆/开端	Ce sont les prémices d'une nouvelle ère.	这是一个新时代的开端。	根： primus (第一)。同源： Premier (第一), Printemps (春天)。\nDériver	v.	偏离/衍生	Le débat a dérivé sur la politique.	辩论偏离到了政治话题上。	根： de- + rivus (小溪)。同源： Rive (岸), Rivage (沿岸)。\nStabilisation	n.f.	稳定化	On attend une stabilisation des prix.	我们在等待价格稳定。	根： stabilis (稳固)。同源： Stable (稳定的), Établir (建立)。\nVecteur	n.m.	载体/媒介	L'art est un vecteur d'émotions.	艺术是情感的载体。	根： vehere (运载)。同源： Voiture (汽车), Véhicule (车辆)。\nStructurel	adj.	结构性的	C'est un changement structurel.	这是一个结构性的改变。	根： struere (建造)。同源： Structure (结构), Construire (建造)。\nDéclic	n.m.	契机/突然醒悟	J'ai eu un déclic en lisant ce livre.	读这本书时我突然开窍了。	根： 拟声词 (咔哒声)。同源： Claquer (拍打), Cliquer (点击)。\nAmbigu	adj.	微妙的/模糊的	Son attitude est très ambiguë.	他的态度非常微妙（模棱两可）。	根： ambi- (双重) + agere (驱动)。同源： Ambition (雄心)。\nRessenti	n.m.	感受/感官体验	Mon ressenti global est positif.	我的总体感受是积极的。	根： re- + sentire (感觉)。同源： Sentiment (情感), Sensation (感觉)。\nDémarche	n.f.	思路/做法	J'apprécie ta démarche créative.	我欣赏你的创意思路。	根： de- + marche (行走)。同源： Marcher (走), Marché (市场)。\nImpact	n.m.	冲击/影响	Cela a eu un impact sur ma vie.	这对我的生活产生了冲击。	根： in- + pangere (撞击/固定)。同源： Impacter (撞击), Compact (紧凑)。\nNuancer	v.	使有层次/不绝对	Il faut nuancer ce propos.	必须使这个论点更有分寸感。	根： nubes。同源： Nuageux (阴云的)。\nAntinomie	n.f.	对立/矛盾	Il y a une antinomie entre les deux.	两者之间存在对立。	根： anti- (反) + nomos (法律)。同源： Autonomie (自治), Économie (经济)。\nComposante	n.f.	组成部分	C'est une composante du succès.	这是成功的一个组成部分。	根： cum + ponere (放置)。同源： Composer (组成), Position (位置)。\nInterdépendance	n.f.	相互依存	L'interdépendance des économies est réelle.	经济的相互依存是客观事实。	根： inter (之间) + de- + pendere (悬挂)。同源： Dépendre (依赖)。\nManifestation	n.f.	表现/体现	C'est la première manifestation du stress.	这是压力的第一次体现。	根： manus (手) + festus (抓取/触碰)。同源： Main (手), Manifester (示威/表现)。\nInévitable	adj.	不可避免的	Un changement était inévitable.	改变是不可避免的。	根： in- + evitare (避开)。同源： Éviter (避开)。\nÉmaner	v.	源自/流露	Une grande force émane de lui.	他身上流露出一种强大的力量。	根： ex- + manare (流出)。同源： Émanation (散发)。\nCorroborer	v.	印证/证实	Ces preuves viennent corroborer mes dires.	这些证据印证了我的话。	根： cum + robur (橡树/力量)。同源： Robuste (强壮的), Robustesse (坚固)。\nJuste	adj.	准确的/合理的	Ton analyse est très juste.	你的分析非常准确。	根： justus (公正)。同源： Justice (正义)。\nSubjectif	adj.	主观的	C'est un avis purement subjectif.	这纯粹是一个主观意见。	根： sub- + jacere (投掷/放置)。同源： Sujet (主体/主题)。\nObjectif	adj.	客观的	Il faut rester objectif malgré tout.	尽管如此，仍需保持客观。	根： ob- + jacere。同源： Objet (物体/目标)。\nÉquilibre	n.m.	平衡	On a trouvé un bon équilibre.	我们找到了一个很好的平衡。	根： aequus (平) + libra (秤)。同源： Équilibrer (平衡), Librairie (书店/原意衡量书籍)。\nContrainte	n.f.	约束/限制	Je doies faire avec cette contrainte.	我必须应对这个限制条件。	根： cum + stringere (拉紧)。同源： Strict (严格的), Étreindre (紧抱)。\nIntégration	n.f.	整合/集成	L'intégration des données est finie.	数据整合已经完成。	根： in- (不) + tangere (触碰)。同源： Entier (完整的), Intègre (正直的)。\nParamètre	n.m.	因素/变量	C'est un paramètre à ne pas oublier.	这是一个不能忘记的变量（因素）。	根： para (旁) + metron (测量)。同源： Mètre (米), Périmètre (周长)。\nEffet de levier	n.m.	杠杆效应	Ce petit changement a un effet de levier énorme.	这个微小的改变具有巨大的杠杆效应。	根： ex- + facere + levare (举起)。同源： Levier (杠杆), Élève (学生)。\nEffet domino	n.m.	连锁反应	Sa démission a provoqué un effet domino.	他的辞职引发了连锁反应。	根： dominus (主人/多米诺骨牌)。同源： Dominer (统治), Dimanche (主日)。\nInteraction	n.f.	相互作用	L'interaction entre ces deux produits est mauvaise.	这两种产品之间的相互作用很糟糕。	根： inter + agere (做)。同源： Action (行动), Acteur (演员)。\nRétroaction	n.f.	反馈	On a besoin d'une rétroaction rapide des usagers.	我们需要用户快速的反馈。	根： retro (向后) + agere。同源： Rétrograde (倒退的)。\nCompensations	n.f.pl.	补偿/对冲	Il y a des compensations financières au retard.	对延迟有经济上的补偿。	根： cum + pendere (衡量/支付)。同源： Compenser (补偿), Poids (重量)。\nDéséquilibre	n.m.	失衡	Cette mesure crée un déséquilibre budgétaire.	这项措施造成了预算失衡。	根： dis- + aequus + libra。同源： Déséquilibré (失衡的)。\nHarmoniser	v.	使协调/使统一	Il faut harmoniser les couleurs de la pièce.	必须使房间的颜色协调一致。	根： harmos (连接/肩膀)。同源： Harmonie (和谐), Harmonieux (悦耳的)。\nAjustable	adj.	可调节的	Le plan de travail est ajustable en hauteur.	工作台的高度是可调节的。	根： ad- + justus。同源： Ajustement (调整)。\nRéversibilité	n.f.	可逆性	La réversibilité du processus est garantie.	过程的可逆性得到了保证。	根： re- + vertere (转)。同源： Revers (背面), Version (版本)。\nObsolescence	n.f.	过时/淘汰	L'obsolescence de ce matériel est rapide.	这种设备的过时速度很快。	根： ob- + solere (习惯用/磨损)。同源： Obsolète (过时的), Insolite (罕见的)。\nIncohérence	n.f.	矛盾/不连贯	J'ai relevé une incohérence dans ses propos.	我发现他话里有一处矛盾。	根： in- + cum + haerere。同源： Incohérent (不连贯的)。\nFinitude	n.f.	有限性	Il faut accepter la finitude des ressources.	必须接受资源的有限性。	根： finis (结束/界限)。同源： Fini (有限的/完成的)。\nPolyvalence	n.f.	多功能性/全能	On apprécie la polyvalence de cet artisan.	我们很欣赏这位工匠的多才多艺。	根： poly (多) + valere (力量/价值)。同源： Valeur (价值), Ambivalence (矛盾心理)。\nPotentiel	n.m.	潜力/可能性	Ce quartier a un fort potentiel de croissance.	这个街区有很大的增长潜力。	根： potens (有能力的)。同源： Pouvoir (能够), Puissant (强大的)。\nHypothétiquement	adv.	假设地	Hypothétiquement, que feriez-vous à ma place ?	假设性地问一下，换做是你你会怎么做？	根： hypo + thesis。同源： Hypothèse (假设)。\nProbabilité	n.f.	可能性/概率	La probabilité d'un échec est très faible.	失败的可能性（概率）非常低。	根： probabilis (可证明的/值得赞赏)。同源： Prouver (证明), Probant (有力的)。\nVraisemblable	adj.	看起来真实的	C'est l'explication la plus vraisemblable.	这是最看起来真实（可信）的解释。	根： verus (真) + similis (像)。同源： Vérité (真理), Ressembler (像)。\nInférer	v.	推断	On peut inférer que la situation va s'améliorer.	我们可以推断局势将会好转。	根： in- + ferre (带来)。同源： Différer (延迟/不同), Conférer (授予)。\nExtrapoler	v.	外推/推测	Ne pas extrapoler à partir d'un seul cas.	不要仅根据一个案例就过度推断。	根： extra (外面) + polire (磨光/修饰)。同源： Polir (抛光), Poli (有礼貌的)。\nSpécificité	n.f.	特殊性	Il faut respecter la spécificité de ce dossier.	必须尊重这个案子的特殊性。	根： species (种类/外观)。同源： Espèce (物种), Épice (香料)。\nGlobalité	n.f.	全局/整体	Il faut juger le projet dans sa globalité.	必须从整体（全局）来评价这个项目。	根： globus。同源： Globalisation (全球化)。\nModularité	n.f.	模块化	La modularité du canapé est un vrai plus.	沙发的模块化设计是一个真正的加分项。	根： modulus (小标准/模数)。同源： Mode (方式), Modèle (模型)。\nConfiguration	n.f.	配置/构造	La configuration de la cuisine est parfaite.	厨房的构造配置非常完美。	根： cum + figurare (塑造形状)。同源： Figure (面孔/形状), Forme (形式)。\nIntrinsèque	adj.	内在的/本质的	La valeur intrinsèque de l'objet est élevée.	物品的内在价值很高。	根： intrinsecus (在内部)。同源： Intérieur (内部)。\nExtrinsèque	adj.	外在的	Ce sont des motivations extrinsèques.	这些是外在的动机。	根： extrinsecus (在外部)。同源： Extérieur (外部)。\nS'apparenter à	v.	类似于	Son comportement s'apparente à de la fuite.	他的行为类似于逃避。	根： ad- + parens (亲属/父母)。同源： Parent (亲戚), Parenté (亲缘关系)。\nÉquivoque	adj./n.f.	模棱两可	Il n'y a aucune équivoque dans ma réponse.	我的回答中没有任何模棱两可之处。	根： aequus (平) + vox (声音)。同源： Voix (声音), Égal (平等的)。\nAmbivalence	n.f.	矛盾心态	Je ressens une certaine ambivalence face au projet.	面对这个项目，我感受到一种矛盾的心态。	根： ambi- + valere。同源： Valeur (价值)。\nDichotomie	n.f.	二分法/对立	Il y a une dichotomie entre le dire et le faire.	说和做之间存在着对立。	根： dicha (二) + temnein (切)。同源： Tome (册/卷), Anatomie (解剖)。\nSimultanément	adv.	同时地	Les deux problèmes sont arrivés simultanément.	这两个问题同时发生了。	根： simul (同时)。同源： Simuler (模拟), Assembler (集合)。\nPréalablement	adv.	事先/预先	Il faut préalablement vérifier le terrain.	必须事先核实场地。	根： prae- + aliud (其他)。同源： Préalable (预先的)。\nConsécutivement	adv.	连续地	Il a plu pendant trois jours consécutivement.	连续下了三天雨。	根： cum + sequi (跟随)。同源： Suivre (跟随), Suite (续集/之后)。\nRéciproque	adj.	相互的	Le respect doit être réciproque.	尊重必须是相互的。	根： requus + proquus。同源： Réciprocité (互惠)。\nUnilatéral	adj.	单方面的	C'est une décision unilatérale de leur part.	这是他们单方面做出的决定。	根： unus (一) + latus (侧面)。同源： Latéral (侧面的), Latitude (维度/范围)。\nBilatéral	adj.	双边的	Un accord bilatéral a été signé.	签署了一项双边协议。	根： bis (二) + latus。同源： Binaire (二进制的)。\nConvergence	n.f.	汇聚/趋同	On assiste à une convergence des technologies.	我们正见证技术的融合。	根： cum + vergere。同源： Convergent (趋同的)。\nDivergence	n.f.	分歧/偏离	Nos opinions sont en totale divergence.	我们的意见完全分歧。	根： di- + vergere。同源： Divergent (分歧的)。\nPolarisation	n.f.	极化/对立	La polarisation du débat est inquiétante.	辩论的两极分化令人担忧。	根： polos (轴/极)。同源： Pôle (极点), Polaire (极地的)。\nTransversal	adj.	跨领域的/横向的	C'est un problème transversal à tous les services.	这是一个跨越所有部门的问题。	根： trans + vertere (转)。同源： Traverser (横穿), Version (译文)。\nHiérarchiser	v.	排序/分等级	Il faut hiérarchiser les priorités.	必须对优先级进行排序。	根： hieros (神圣) + arkhein (统治)。同源： Hiérarchie (等级制度), Archange (大天使)。\nSubordonner	v.	使从属于	Le prix est subordonné à la qualité.	价格从属于（取决于）质量。	根： sub- + ordo (秩序)。同源： Ordre (命令/秩序), Ordinaire (普通的)。\nAutonomie	n.f.	自主性	Ce système fonctionne en totale autonomie.	该系统完全自主运行。	根： autos + nomos。同源： Autonome (自治的)。\nDépendance	n.f.	依赖性	On veut éviter une trop grande dépendance.	我们想避免过大的依赖性。	根： de- + pendere。同源： Dépendant (依赖的)。\nExternalité	n.f.	外部效应	Cette politique a des externalités négatives.	这项政策具有负面外部效应。	根： externus (外部的)。同源： Externe (外部的), Extérieur (外面的)。\nRépercuter	v.	转嫁/反映	La hausse des coûts se répercute sur le prix.	成本上涨反映在（转嫁到）了价格上。	根： re- + percutere。同源： Répercussion (反响)。\nIncitatif	adj.	激励性的	Le gouvernement a mis en place un plan incitatif.	政府实施了一项激励计划。	根： in- + citare (驱动)。同源： Inciter (鼓动), Exciter (激动)。\nDissuasif	adj.	威慑性的/阻碍的	Le prix élevé a un effet dissuasif.	高昂的价格具有威慑（阻碍购买）的作用。	根： dis- + suadere。同源： Dissuader (劝阻), Suasif (劝说的)。\nLégitimer	v.	使合法化/证明合理	Cela ne légitime pas son comportement.	这不能证明他的行为是合理的。	根： lex。同源： Légitimité (合法性)。\nDiscriminer	v.	区分/辨别	Il est difficile de discriminer le vrai du faux.	很难辨别真伪。	根： dis- + krinein (区分)。同源： Discriminer (歧视), Crime (罪行/原意裁决)。\nSynthétiser	v.	综合/汇总	Peux-tu synthétiser les points clés ?	你能汇总一下关键点吗？	根： syn + thesis。同源： Synthétique (综合的)。\nModuler	v.	调整/调节	On peut moduler l'intensité de la lumière.	我们可以调节光线的强度。	根： modulus。同源： Module (模块), Modulation (调制)。\nOptimiser	v.	优化	Il faut optimiser l'utilisation de l'espace.	必须优化空间的使用。	根： optimus (最好的)。同源： Optimum (最佳值), Optimisme (乐观)。\nNégligeable	adj.	可忽略的	L'impact sur le budget est négligeable.	对预算的影响是可以忽略不计的。	根： nec (不) + legere (收集/选择)。同源： Négliger (忽略), Lire (读), Élire (选举)。\nSubstantiel	adj.	实质性的/大量的	Il y a un avantage substantiel à agir vite.	迅速采取行动有实质性的好处。	根： sub- + stare (站立)。同源： Substance (物质), Stable (稳定的)。\nFondamental	adj.	根本的	C'est une question de principe fondamental.	这是一个根本性的原则问题。	根： fundus。同源： Fondement (基础)。\nAccessoire	adj./n.m.	辅助的/次要的	Ce détail est purement accessoire.	这个细节纯粹是次要的。	根： ad- + cedere。同源： Accessibilité (可及性)。\nPrépondérant	adj.	占优势的/主要的	Son rôle a été prépondérant dans le succès.	他的角色在成功中起到了主要作用。	根： prae- + pondus (重量)。同源： Poids (重量), Pondérer (衡量/平衡)。\nDéfectueux	adj.	有缺陷的	Le système de chauffage est défectueux.	供暖系统有缺陷。	根： de- + facere (做/完成)。同源： Défaut (缺陷), Désuet (陈旧的)。\nOptimisme	n.m.	乐观	Je garde un certain optimisme pour la suite.	我对后续保持一定的乐观。	根： optimus。同源： Optimiste (乐观的)。\nPessimisme	n.m.	悲观	Son pessimisme freine l'enthousiasme.	他的悲观情绪抑制了热情。	根： pessimus (最坏的)。同源： Pessimiste (悲观的)。\nPrudence	n.f.	谨慎	La prudence est de mise dans cette situation.	在这种情况下需要保持谨慎。	根： prae- + videre (预见)。同源： Prudent (谨慎的), Prévoir (预见)。\nTémerité	n.f.	鲁莽	Sa témérité nous a mis en danger.	他的鲁莽使我们陷入危险。	根： temere (盲目地/黑暗)。同源： Téméraire (鲁莽的)。\nAltérer	v.	改变/损坏	L'humidité a fini par altérer le bois.	潮湿最终损坏了木材。	根： alter。同源： Altération (变质/损害)。\nRestaurer	v.	恢复/修复	On veut restaurer la confiance entre nous.	我们想恢复我们之间的信任。	根： re- + staurare (建立/支撑)。同源： Restaurant (餐馆/原意恢复体力), Instaurer (创立)。\nStabiliser	v.	稳定	Il faut stabiliser la structure avant de continuer.	在继续之前必须稳定结构。	根： stabilis。同源： Stabilité (稳定性)。\nPérenniser	v.	使持久化	Nous voulons pérenniser cette collaboration.	我们希望使这种合作持久化。	根： per + annus (年)。同源： Pérenne (长久的), Année (年)。\nÉphémère	adj.	短暂的	C'était une satisfaction éphémère.	那只是一种短暂的满足感。	根： epi + hemera (天)。同源： Éphéméride (历书)。\nChronologique	adj.	按时间顺序的	Voici le récit chronologique des événements.	这是事件的按时间顺序的叙述。	根： khronos (时间) + logos。同源： Chronomètre (秒表), Anachronisme (时代错误)。\nAnachronisme	n.m.	时代错误	Ce style est un anachronisme dans cette maison.	这种风格在这座房子里显得不合时宜。	根： ana- (反) + khronos。同源： Chronique (纪事)。\nAnticiper	v.	预判/提前行动	Il faut anticiper les problèmes techniques.	必须预判技术问题。	根： ante- + capere (取)。同源： Anticipation (预期)。\nImproviser	v.	即兴发挥/临时凑合	On a dû improviser car rien n'était prêt.	因为什么都没准备好，我们不得不临时凑合。	根： in- (不) + pro- + videre (预见)。同源： Imprévu (意外的), Voir (看)。\nRéagir	v.	反应	Comment a-t-il réagi à la nouvelle ?	他对这个消息有什么反应？	根： re- + agere。同源： Réaction (反应), Agir (行动)。\nProactif	adj.	主动的/先发制人的	Il faut être proactif pour éviter les retards.	为了避免延迟，必须采取主动。	根： pro- + agere。同源： Activité (活动)。\nRéactif	adj.	反应敏捷的	L'équipe est très réactive aux demandes.	团队对需求反应非常敏捷。	根： re- + agere。同源： Réacteur (反应堆)。\nPassivité	n.f.	被动	Sa passivité est assez exaspérante.	他的被动相当令人恼火。	根： pati (受苦/忍受)。同源： Passion (激情), Patient (病人)。\nInertie	n.f.	惯性/迟钝	L'inertie administrative ralentit le projet.	行政上的惯性（迟缓）减慢了项目进度。	根： in- + ars (艺术/技能)。同源： Inerte (无生气的), Art (艺术)。\nDynamisme	n.m.	活力/动态性	On apprécie le dynamisme de ce nouveau maire.	我们很欣赏这位新市长的活力。	根： dynamis (力量)。同源： Dynamique (动态的), Dynamite (炸药)。\nRigidité	n.f.	僵化/刚性	La rigidité du règlement pose problème.	规章的僵化造成了问题。	根： rigere (僵硬)。同源： Rigide (僵硬的), Rigueur (严厉)。\nSouplesse	n.f.	灵活性	Il nous faut plus de souplesse dans les horaires.	我们在时间安排上需要更多的灵活性。	根： supplex (折叠在下/哀求)。同源： Souple (柔软的), Supplier (哀求)。\nConformité	n.f.	符合/一致性	Le travail est en conformité avec le devis.	工作内容与报价单一致。	根： cum + forma (形状)。同源： Conformer (遵守), Forme (形式)。\nAnomalie	n.f.	异常	J'ai détecté une anomalie dans le système.	我在系统中检测到了异常。	根： an- (不) + homalos (平坦/相同)。同源： Anomal (异常的)。\nExceptionnel	adj.	例外的/卓越的	C'est un cas exceptionnel, cela n'arrivera plus.	这是一个特例，不会再发生了。	根： ex- + capere (取出)。同源： Exception (例外), Excepté (除...外)。\nGénéraliser	v.	概括/推广	On ne peut pas généraliser à partir d'un exemple.	不能根据一个例子就推而广之。	根： genus (种类)。同源： Général (一般的), Genre (类别)。\nParticularité	n.f.	特点	La particularité de ce sol est son acidité.	这种土壤的特点是其酸性。	根： particula (小部分)。同源： Particulier (特别的), Petit (小的)。\nRécurrence	n.f.	反复出现/循环	La récurrence de ce problème nous inquiète.	这个问题的反复出现令我们担忧。	根： re- + currere。同源： Récurrent (循环的)。\nFréquence	n.f.	频率	La fréquence des trains a été augmentée.	列车的发车频率增加了。	根： frequens (密集的/常去的)。同源： Fréquenter (常去)。\nIntensité	n.f.	强度	L'intensité de la lumière est réglable.	灯光的强度是可调的。	根： in- + tendere (伸展)。同源： Intense (强烈的), Tendre (伸出)。\nAmpleur	n.f.	规模/广度	L'ampleur des dégâts est considérable.	损害的规模相当大。	根： amplus (广大的)。同源： Ample (宽大的), Amplifier (放大)。\nSignificatif	adj.	显著的/有意义的	Il y a eu un progrès significatif ce mois-ci.	这个月有了显著的进展。	根： signum + facere。同源： Signification (意义), Signe (信号)。\nMinime	adj.	极小的	Le risque est minime, mais il existe.	风险极小，但确实存在。	根： minimus (最小)。同源： Minimum (最小值), Minorité (少数)。\nCrucial	adj.	至关重要的	C'est un moment crucial pour notre avenir.	这是对我们未来至关重要的时刻。	根： crux (十字)。同源： Croix (十字架), Croiser (交叉)。\nSecondaire	adj.	次要的	C'est une question secondaire pour l'instant.	目前这是一个次要问题。	根： sequi (跟随)。同源： Second (第二), Suivre (跟随)。\nObsolète	adj.	已淘汰的	Cette technologie est devenue obsolète.	这项技术已经过时了。	根： obsolescere (废弃)。同源： Obsolescence (过时)。\nInnovant	adj.	创新的	Son approche est très innovante et fraîche.	他的方法非常创新且清新。	根： in- + novus (新)。同源： Nouveau (新的), Innovation (创新)。\nConventionnel	adj.	常规的/传统的	On a choisi un style plus conventionnel.	我们选择了一种更常规的风格。	根： cum + venire (来到一起)。同源： Convention (公约/常规), Venir (来)。\nAtypique	adj.	非典型的/独特的	C'est un parcours assez atypique.	这是一个相当独特的经历。	根： a- (无) + typos (印痕/类型)。同源： Type (类型), Typique (典型的)。\nCohérent	adj.	逻辑自洽的	Ton explication est tout à fait cohérente.	你的解释完全逻辑自洽。	根： cum + haerere。同源： Cohérence (一致性)。\nIncohérent	adj.	逻辑混乱的	Ses propos sont totalement incohérents.	他的话完全逻辑混乱。	根： in- + cum + haerere。同源： Incohérence (不连贯)。\nSolidaire	adj.	团结的/连带的	Nous sommes tous solidaires de cette décision.	我们都对这项决定负连带责任（表示支持）。	根： solidus (牢固/全体)。同源： Solide (固体/坚固), Solidarité (团结)。\nSynthétique	adj.	综合的/简明的	Merci pour ce rapport très synthétique.	感谢这份非常简明扼要的报告。	根： syn + thesis。同源： Synthétiser (综合)。");
+	
+
+
+	document.getElementById("testarea").innerHTML = window.screen.width;
+</script>
+
+
+
+<deepl-input-controller><template shadowrootmode="open"><link rel="stylesheet" href="chrome-extension://cofdbpoegempjloogbagkncekinflcnj/build/content.css"><div dir="ltr"><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller></body></html>

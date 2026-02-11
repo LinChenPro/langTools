@@ -1,0 +1,1071 @@
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<!-- saved from url=(0041)https://www.budingparis.com/tests/VT.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<script type="text/javascript">
+// levels constents
+var INIT_LEVEL = 50;
+var MAX_LEVEL = 100;
+
+// list size definition
+var MAX_CRT_SIZE = 10;
+var ERROR_SIZE = 3;
+
+// repeat time définitions
+var MAX_CORRECT_TM = 20;
+var MAX_REPEAT_ERROR = 3;
+var NEED_CORRECT_TM = 4;
+var NEED_RECORRECT_TM = 3;
+var ERROR_WAIT_LENGTH = 4;
+
+var STATUT_WATTING = 1;
+var STATUT_CRT = 2;
+var STATUT_ERROR = 3;
+var STATUT_FINISHED = 4;
+
+var SHOW_LIST = true;
+
+// list functions
+// return if arr contient findValue
+function contains(arr, findValue){
+	for(var i=0; i<arr.length; i++){
+		if(arr[i]==findValue){
+			return true;
+		}
+	}
+	return false;
+}
+function removeValue(list, value){
+	for(i in list){
+		if(list[i] == value){
+			list.splice(i, 1);
+		}
+	}	
+}
+
+
+// random 0 to n-1, ratio i / i+1 = d 
+function randomRatio(n, d){// alert(currentList.length + ", " + n + "," + d)
+	if(d==1){
+		return random(n);
+	}
+	var N = (Math.pow(d, n)-1);
+	var r = N + 1 - Math.random() * N;
+	return n - Math.ceil(Math.log(r) / Math.log(d));
+}
+
+// random 0 to n-1
+function random(n){
+	return Math.floor(Math.random()*n);
+}
+
+// lists
+var waitingList;
+var finishedList;
+var currentList;
+var errorList;
+function initEmptyLists(){
+	waitingList = new Array();
+	finishedList = new Array();
+	currentList = new Array();
+	errorList = [emptyWordId(), emptyWordId(), emptyWordId()];
+
+}
+
+function emptyWordId(){
+	return -(random(1000)+1000);
+}
+
+function isEmptyWordId(i){
+	return i<0;
+}
+
+function isValidWordId(i){
+	return i>=0 && i< words.length;
+}
+
+function initLists(){
+	initEmptyLists();
+
+	for(var i=0; i<words.length; i++){
+		toWaitting(i);
+	}
+
+	for(var i=0; i<MAX_CRT_SIZE; i++){
+		if(waitingList.length==0){
+			break;
+		}
+		r = random(waitingList.length);
+		toCurrent(waitingList.splice(r, 1)[0]);
+	}
+}
+
+// functions that set value i into a list
+function changeToList(i, list, statut, pos){	
+	// remove if already exist
+	removeValue(waitingList, i);
+	removeValue(currentList, i);
+	removeValue(errorList, i);
+	removeValue(finishedList, i);
+
+	if(pos==null || list.length<pos){
+		list.push(i);
+	}else{
+		list.splice(pos, 0, i);
+	}
+	if(isValidWordId(i) && (statut==STATUT_WATTING || words[i].statut != STATUT_FINISHED)){
+		words[i].statut = statut;
+	}
+}
+
+function toWaitting(i){
+	if(!isEmptyWordId(i) && words[i].statut != STATUT_WATTING){
+		words[i].totalCorrectCt = 0;
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, waitingList, STATUT_WATTING);
+}
+
+function toCurrent(i, pos){
+	if(isValidWordId(i) && words[i].statut != STATUT_CRT){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, currentList, STATUT_CRT, pos);
+}
+
+function toError(i){
+	if(isValidWordId(i) && words[i].statut != STATUT_ERROR){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, errorList, STATUT_ERROR);
+	if( errorList.length > ERROR_SIZE){
+		for(i=errorList.length; i>=0; i--){
+			if(isEmptyWordId(errorList[i])){
+				errorList.splice(i, 1);
+				break;
+			}
+		}
+	}
+}
+
+function toFinished(i){
+	changeToList(i, finishedList, STATUT_FINISHED);
+}
+
+// affichage functions
+function affLists(){
+	showList(waitingList, "waiting_div");
+	showList(finishedList, "finished_div");
+	showList(currentList, "current_div");
+	showList(errorList, "error_div");
+	document.getElementById("aff").style.display = SHOW_LIST ? "block" : "none";
+}
+
+function showList(list, divId){
+	var div = document.getElementById(divId);
+	div.innerHTML = "";
+	for(var i=0; i<list.length; i++){
+		div.innerHTML += getWordAff(list[i]);
+	}
+}
+
+function getWordAff(i){
+	if(isValidWordId(i)){
+		var word = words[i];
+		colorCode = getColorCode(word.level)
+		var selectedword = (i==SELECTED_WORD_ID)?" crtword" : "";
+		var finishedword = (word.statut==STATUT_FINISHED)?" finishedword" : "";
+		return '<div class="affword'+ selectedword + finishedword + '" style="background-color:'+colorCode+'">'
+				+ getIndiceBlock("error", MAX_REPEAT_ERROR, word.repeatErrCt)
+				+ (
+					word.statut==STATUT_ERROR 
+					? getIndiceBlock("recorect", NEED_RECORRECT_TM, word.correctCt) 
+					: getIndiceBlock("correct", NEED_CORRECT_TM, word.correctCt) 
+				)
+				+ getIndiceBlock("total", MAX_CORRECT_TM, word.totalCorrectCt)
+				+ word.word +'</div>\n';
+	}else{
+		return '<div class="affword_null" style="background-color:white">&nbsp;</div>\n';
+	}
+}
+
+function getIndiceBlock(name, total, value){
+	var spanHtml = '\n<span class="indice_b b_' + name + '">';	
+	var name_point = name;
+	if( (name=="total" && total > 20) || (name!="total" && total > 5)){
+		name_point += "_small";
+	}
+
+	for(var i=0; i<total; i++){
+		if(i<value){
+        	spanHtml += '\n  <span class="indice_v '+name_point+'"></span>'
+		}else{
+			spanHtml += '\n  <span class="indice_t '+name_point+'"></span>'
+		}
+	}
+    spanHtml += '\n</span>\n';
+	return spanHtml;
+        		
+}
+
+function getColorCode(level){
+	var level = (level-1)
+	if(level<1){
+		level=1;
+	}
+	level = Math.floor(100/level)+155;
+
+	var a=level.toString(16);
+	return "#"+a+a+a;
+}
+
+var words=[];
+
+
+function hideButtons(divId){
+	document.getElementById(divId).style.display="none";
+}
+
+function showButtons(divId){
+	document.getElementById(divId).style.display= (divId=="btndiv_3" || divId=="btndiv_4") ? "inline-block" : "inline-block";
+}
+
+function showStartButtonsByCondition(){
+	if(words==null || words.length <=0 ){
+		hideButtons("btndiv_3");
+	}else{
+		showButtons("btndiv_3");
+	}
+
+}
+
+function getSeparator(){
+	var radios = document.getElementsByName("separator");
+	for(var i=0; i<radios.length; i++){
+		if(radios[i].checked){
+			return radios[i].value;
+		}
+	}
+	return ",";
+}
+
+function load(){
+	var inputs = document.getElementById("input_words").value;
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	words = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split(getSeparator());
+		if(params.length==2){
+			words[i]={'word':params[0],'mean':params[1],'level':INIT_LEVEL};
+		}else if(params.length==3 && params[2]!=''){
+			words[i]={'word':params[0],'mean':params[1],'level':params[2]};
+		}
+	}
+	
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function save(){
+	var saveValues = "";
+	for(var i=0; i<words.length; i++){
+		saveValues += words[i].word+getSeparator()+words[i].mean+getSeparator()+words[i].level+"\n";
+	}
+	
+	document.getElementById("input_words").value = saveValues;
+}
+
+
+
+function getQuestionField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "mean" : "word";
+}
+
+function getAnswerField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "word" : "mean";
+}
+
+function getNext(list, ratio){
+	var i = randomRatio(list.length-1, ratio);
+	// return list.splice(i, 1)[0]; // ch
+	return list[i]; 
+}
+
+var startTime;
+function start(){
+	initLists();
+	startTime = Date.now();
+	nextWord();
+}
+
+function finish(){
+	var t = Math.floor((Date.now()-startTime)/1000)
+	alert("完成 !\n用时" + Math.floor(t/60) +"m"+ (t%60) +"s");
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showButtons("btndiv_3");
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	initLists();
+	affLists();
+	save();
+}
+
+var SELECTED_WORD_ID;
+crtWordBeginTime=0;
+function nextWord(){
+	var i = getNext(errorList, 3);
+	if(isValidWordId(i)){
+		SELECTED_WORD_ID = i;
+	}else{
+		toError(i);
+		SELECTED_WORD_ID = getNext(currentList, 2);
+	}
+
+	crtWordBeginTime=new Date().getTime();
+	showQuestion();
+
+	showButtons("btndiv_1");
+	showButtons("btndiv_2");
+	hideButtons("btndiv_3");
+	showButtons("btndiv_4");
+	// hideButtons("btndiv_5");
+
+
+	affLists();
+}
+
+function showQuestion(){
+	var field = getQuestionField();
+	var question = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(question);
+	}
+
+	document.getElementById("question").innerHTML = field=="word"? ('<span class="bigger">' + question + '</span>') : question;
+	document.getElementById("answer").innerHTML="";	
+	var crtDetail = getCrtDetail();
+	if(crtDetail != null){
+		document.getElementById("detail").innerHTML = crtDetail;
+		showButtons("btndiv_5");
+	}else{
+		hideButtons("btndiv_5");
+	}
+	hideDetail();
+}
+
+function getCrtDetail(){
+	var crtWd = words[SELECTED_WORD_ID];
+	if(crtWd.example != null){
+		return '<span class="small">' + crtWd.example + "<br>" + crtWd.exampleTrans + (crtWd.src == "不适用单词" ? "" : ("<br>" + crtWd.src)) + '</span>';
+	}else{
+		return null;
+	}
+}
+
+function hideDetail(){
+	document.getElementById("detail").style.display="none";
+}
+
+function showDetail(){
+	document.getElementById("detail").style.display="block";
+}
+
+function swichDetail(){
+	if(document.getElementById("detail").style.display=="none"){
+		showDetail();
+	}else{
+		hideDetail();
+	}
+}
+
+
+function showAnswer(){
+	var field = getAnswerField();
+	var answer = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(answer);
+	}
+	document.getElementById("answer").innerHTML = field=="word"? ('<span class="bigger">' + answer + '</span>') : answer;	
+}
+
+function readCurrentWord(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.word);
+	}
+}
+
+function readCurrentDetail(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.example);
+	}
+}
+
+function onRight(){
+	updateLevel(SELECTED_WORD_ID, true);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	crtWord.totalCorrectCt++;
+	crtWord.correctCt++;
+	crtWord.repeatErrCt = 0;
+
+	if(crtWord.totalCorrectCt >= MAX_CORRECT_TM || (crtStatut==STATUT_CRT && crtWord.correctCt>=NEED_CORRECT_TM)){
+		toFinished(SELECTED_WORD_ID);
+	}else if(crtStatut==STATUT_ERROR && crtWord.correctCt>=NEED_RECORRECT_TM){
+		toCurrent(SELECTED_WORD_ID)
+	}else{
+		if(crtStatut == STATUT_ERROR){
+			toError(SELECTED_WORD_ID);
+		}else{
+			toCurrent(SELECTED_WORD_ID);
+		}
+	}
+
+	if(errorList.length < ERROR_SIZE){
+		errorList.push(emptyWordId());
+	}
+
+	while(currentList.length + validWordIdCount(errorList) < MAX_CRT_SIZE && words.length >= MAX_CRT_SIZE){
+		if(waitingList.length>0){
+			var r = random(waitingList.length);
+			toCurrent(waitingList.splice(r, 1)[0]);
+		}else if(finishedList.length>0){
+			var r = random(finishedList.length);
+			toCurrent(finishedList.splice(r, 1)[0]);
+		}
+	}
+
+	if(isAllFinished()){
+		finish();
+	}else{
+		nextWord();
+	}
+
+}
+
+function onWrong(){
+	updateLevel(SELECTED_WORD_ID, false);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	
+	crtWord.repeatErrCt++;
+	if(crtStatut==STATUT_ERROR || crtWord.repeatErrCt>=MAX_REPEAT_ERROR){
+		toError(SELECTED_WORD_ID);
+	}else{
+		toCurrent(SELECTED_WORD_ID, ERROR_WAIT_LENGTH);
+	}
+
+
+
+	nextWord();
+}
+
+function validWordIdCount(list){
+	var cnt = 0;
+	for(i in list){
+		if(isValidWordId(list[i])){
+			cnt++;
+		}
+	}
+	return cnt;
+}
+
+function isAllFinished(){
+	var cnt = 0;
+	for(i in words){
+		if(words[i].statut == STATUT_FINISHED){
+			cnt++;
+		}
+	}
+	return cnt==words.length;
+}
+
+function updateLevel(idx, res){
+	if(!res){
+		words[idx].level=MAX_LEVEL;
+	}else{
+		var tm = new Date().getTime()-crtWordBeginTime
+		words[idx].level=Math.min(Math.floor((words[idx].level+tm/1000)/2), MAX_LEVEL);
+		
+	}
+}
+
+function initOptions(){
+	initOptionSelector("OPTION_MAX_CRT_SIZE", MAX_CRT_SIZE, 6, 20);
+	initOptionSelector("OPTION_ERROR_SIZE", ERROR_SIZE, 2, 6);
+	initOptionSelector("OPTION_MAX_CORRECT_TM", MAX_CORRECT_TM, 5, 40);
+	initOptionSelector("OPTION_NEED_CORRECT_TM", NEED_CORRECT_TM, 1, 10);
+	initOptionSelector("OPTION_MAX_REPEAT_ERROR", MAX_REPEAT_ERROR, 1, 5);
+	initOptionSelector("OPTION_NEED_RECORRECT_TM", NEED_RECORRECT_TM, 1, 10);
+}
+
+function initOptionSelector(elmId, param, minV, maxV){
+	var selector = document.getElementById(elmId);
+	for(var i=minV; i<=maxV; i++){
+		selector.add(new Option(i,i, false, i==param));
+	}
+}
+
+
+function changeOption(){
+	MAX_CRT_SIZE = document.getElementById("OPTION_MAX_CRT_SIZE").value;
+	ERROR_SIZE = document.getElementById("OPTION_ERROR_SIZE").value;
+	MAX_CORRECT_TM = document.getElementById("OPTION_MAX_CORRECT_TM").value;
+	NEED_CORRECT_TM = document.getElementById("OPTION_NEED_CORRECT_TM").value;
+	MAX_REPEAT_ERROR = document.getElementById("OPTION_MAX_REPEAT_ERROR").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	SHOW_LIST = document.getElementById("OPTION_SHOW_LIST").checked;
+	affLists();	
+}
+
+// keyboard
+function handleShortcut(event) { 
+    if (event.key === "ArrowLeft") { 
+        onRight();
+        event.preventDefault(); 
+        // Votre action à effectuer lorsque la touche est enfoncée 
+    }else if(event.key === "ArrowRight"){
+        onWrong();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowUp"){
+        readCurrentWord();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowDown"){
+        showAnswer();
+        event.preventDefault(); 
+    }else if(event.key === "l"){
+        swichDetail();
+        event.preventDefault(); 
+    }else if(event.key === "o"){
+        readCurrentDetail();
+        event.preventDefault(); 
+    }
+} 
+document.addEventListener("keydown", handleShortcut);
+
+
+
+// voice reader
+
+var reader_init_count = 0;
+var reader_voices;
+function waitInit(){
+	var success = false;
+	try {
+		if(window.speechSynthesis.getVoices().length>0){
+			reader_voices = window.speechSynthesis.getVoices();
+
+			initSelector("fr-FR");
+			// initSelector("zh-CN");
+			// initSelector("zh-TW");
+			success = true;
+		}
+	} catch (error) {console.error(error);}
+
+	if(success){
+		return;
+	}else if(!success && reader_init_count++<5){
+		setTimeout(waitInit,100);
+	}
+}
+
+
+function initSelector(lang){
+	var selector = document.getElementById("lang_"+lang);
+	for(i=0; i<reader_voices.length; i++){
+		if(reader_voices[i].lang==lang){
+			var option_i = new Option(reader_voices[i].name,i, false, reader_voices[i].name.includes("Google"));
+			selector.add(option_i);
+		}
+	}
+}
+
+
+function getVoice(v){
+	return reader_voices[v];
+}
+
+function speak(txt, voice){
+	try{
+		var speech = new SpeechSynthesisUtterance();
+		speech.voice = voice;
+		speech.text = txt;
+		window.speechSynthesis.speak(speech);
+	}catch (error) {}
+}
+
+function read(id, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(document.getElementById(id).value, getVoice(lang));
+}
+
+function readText(txt, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(txt, getVoice(lang));
+}
+
+
+function readWord(wd){
+	if(needRead() && reader_voices != null){
+		readText(wd, "fr-FR")
+	}
+
+}
+
+function needRead(){
+	return document.getElementById("read_option").checked;
+}
+
+function changeReadOption(){
+	document.getElementById("readCrtWdBt").disabled = !document.getElementById("read_option").checked;
+}
+
+
+var lessonsList = [];
+function loadTxt(inputs){
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	var lesson = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split("\t");
+		if(params.length==2){
+			lesson.push({'word':params[0],'mean':params[1],'level':INIT_LEVEL});
+		}else if(params.length==3 && params[2]!=''){
+			lesson.push({'word':params[0],'mean':params[1],'level':params[2]});
+		}else if(params.length==5){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4]})
+		}else if(params.length==6){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4],'src':params[5]})
+		}
+
+		if(lesson.length==42){
+			lessonsList.push(lesson);
+			lesson = new Array();
+		}
+	}
+	if(lesson.length != 0){
+		lessonsList.push(lesson);
+	}
+
+	var selector = document.getElementById("lessons");
+	for(var i=0; i<lessonsList.length; i++){
+		var option = document.createElement("option");
+		option.text = i+1;
+		selector.add(option);
+	}
+}
+
+function loadLesson(){
+	var selector = document.getElementById("lessons");
+	if(selector.value != null){
+		words = lessonsList[selector.value-1];
+		save();
+	}
+
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function nw(w, m){
+	return {'word':w,'mean':m,'level':INIT_LEVEL};
+}
+
+
+setTimeout(waitInit,100);
+
+</script>
+
+<style type="text/css">
+@media only screen and (max-width: 600px) {
+*{
+    font-family: sans-serif;
+	font-size: 30px;
+}
+
+.option_title {
+    width: 50% !important;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+#aff{
+	position: initial !important;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+
+#exe{
+	height: 900px !important;
+	position: relative;
+	width: 570px;
+}
+
+#question, #answer{
+	font-size: 40px !important;	
+	padding-top: 10px;
+	height: 200px !important;	
+}
+
+#question{
+	text-align: left;
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 7px !important;
+    padding: 5px;
+    margin: 50px 20px 0 20px !important;
+    width: 85%	 !important;
+}
+
+#detail, #detail *{
+    font-size: 15px !important;
+}
+
+.bigger{
+	font-size: 50px !important;	
+	font-weight: bold;
+}	
+
+
+#btndiv_1 button, #btndiv_2 button, #btndiv_5 button{
+	height: 100px !important;
+	width: 135px;
+	font-size: 35px !important;	
+	bottom: 10px;
+}
+
+#btndiv_1 , #btndiv_2, #btndiv_5{
+	position: absolute !important;
+	bottom: 10px;
+	width: 280px;
+}
+
+#btndiv_1 {
+	left:10px;
+	bottom:120px;
+
+}
+
+#btndiv_2 {
+	left:10px;
+}
+
+#btndiv_5 {
+	left:10px;
+	bottom:240px;
+}
+
+#input_words{
+	font-size: 25px !important;
+}
+
+}
+
+
+body{
+    font-family: sans-serif;
+}
+
+.buttons button{
+	padding:5px; 
+	margin:5px;
+	font-size: 8px;
+}
+#word{
+	font-size: 20px;
+}
+#input_words{
+	width:550px;
+	height:200px;
+	font-family: sans-serif;
+}
+#aff{
+	position: absolute;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+.list_aff{
+    min-width: 150px;
+    padding: 5px;
+    display: inline-block;	
+	vertical-align: top
+}
+
+.affword, .affword_null{
+	font-size: 12px;
+	border: 1px solid green;
+	margin: 2px 0px;
+	padding: 1px;
+    display:block;
+}
+
+.crtword{
+	border: 1px solid red !important;
+	font-weight:bold;
+}
+
+.finishedword{
+	color:#712a2a;
+	font-weight:bold;
+}
+
+
+.indice_b{
+	display: inline-block;
+    background-color: #bbbb88;
+    width: 6px;
+    float: inline-end;
+    padding: 0px 1px 1px 0px;
+    margin-left : 3px;
+}
+
+.indice_v, .indice_t{
+	display: inline-block;
+    margin: 1px 1px 0px 1px;
+    width: 5px;
+    height: 2px;
+    vertical-align: top;
+    float: inline-start;
+}
+
+.indice_t{
+	opacity:0.2;
+}
+
+.error, .error_small{
+	background-color:red;
+}
+
+.correct, .correct_small{
+	background-color:green;
+}
+
+.recorect, .recorect_small{
+	background-color:blue;
+}
+
+
+.error_small, .correct_small, .recorect_small{
+    height: 1px;
+    margin-top: 0.5px;
+}
+
+.b_total{
+	width:12px;
+}
+
+.total{
+    background-color: green;
+    width:2px;
+    margin: 1px 0px 0px 1px;
+}
+
+.total_small{
+    background-color: green;
+    width:1px;
+    margin: 0.2px 0px 0px 1px;
+}
+
+#question, #answer{
+	font-size: 25px;	
+	height: 60px;
+	padding-left:5px;
+	height: 60px;
+	padding-left:5px;
+}
+
+#question{
+	color: #bb4110;	
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 10px;
+    padding: 5px;
+    margin: 20px 0 0 20px;
+    width: 550px;
+}
+
+#answer{
+	color: #174917;	
+}
+
+
+.block{
+	margin: 20px 5px;
+	padding: 5px;
+	width: 600px;
+	border: 1px solid black;
+}
+
+.div_sep{
+	border-bottom: 1px solid black;
+	margin: 10px;
+}
+
+.option_title{
+	width: 150px;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+
+</style>
+<title>单词训练</title>
+</head>
+<body onkeypress="onKey(event)">
+
+<div>
+
+	<div class="block" id="exe">
+		<div id="detail"></div>
+		<div id="question"></div>
+		<div id="answer"></div>
+
+
+		<span id="btndiv_1" style="display: none;">
+			<button onclick="onRight();">正确←</button>
+			<button onclick="onWrong();">错误→</button>
+		</span>
+		&nbsp;&nbsp;
+		<span id="btndiv_2" style="display: none;">
+			<button onclick="showAnswer();">答案↓</button>
+			<button onclick="readCurrentWord();" id="readCrtWdBt">读音↑</button>
+		</span>
+		<span id="btndiv_5" style="display: none;">		
+			<button onclick="swichDetail();" id="detailCrtWdBt">详情L</button>
+			<button onclick="readCurrentDetail();" id="readDetailCrtWdBt">读例O</button>
+		</span>
+		
+	</div>
+	
+
+	<div class="block">
+		方向 : 
+		<input type="radio" name="direction" value="0" checked="">法 - 汉
+		&nbsp;&nbsp;
+		<input type="radio" name="direction" value="1" id="direction_inverse">汉 - 法
+		&nbsp;&nbsp;&nbsp;
+		<span id="btndiv_3" style="display: none;">
+			<button id="b_32" onclick="start();">开始</button>
+		</span>
+		<span id="btndiv_4" style="display: none;">
+			<button id="b_32" onclick="finish();">结束</button>
+		</span>
+	</div>
+
+	<div class="block">
+		<div id="lists"></div>
+		<textarea id="input_words"></textarea>
+		<br>
+		<button onclick="load();">导入单词</button>
+		<button onclick="save();">导出单词</button>
+		分隔符 : <input type="radio" name="separator" value=";" checked=""> <b>;</b>
+		&nbsp; &nbsp;
+		<input type="radio" name="separator" value=","> <b>,</b>
+	</div>
+	<div class="block">
+		<select id="lessons"></select> <button onclick="loadLesson();">导入课程</button>
+	</div>
+	
+	<div class="block">
+		<div>
+			<button onclick="waitInit()">初始化语音引擎</button>&nbsp; &nbsp;
+			法语引擎 : <select id="lang_fr-FR"><option value="0">Microsoft Hortense - French (France)</option><option value="1">Microsoft Julie - French (France)</option><option value="2">Microsoft Paul - French (France)</option><option value="9">Google français</option></select>
+		</div>
+
+		<div>
+			开启单词朗读功能<input type="checkbox" id="read_option" checked="" onchange="changeReadOption()">&nbsp; &nbsp;
+			测试文字<input type="text" id="word_fr" value="banana"><button onclick="read(&#39;word_fr&#39;, &#39;fr-FR&#39;)"> 试读 </button>
+		</div>
+	</div>
+	
+
+	<div class="block">
+		<div class="div_sep">选项 : </div>
+		<div><span class="option_title">当前列表长度 : </span><select id="OPTION_MAX_CRT_SIZE" onchange="changeOption()"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select></div>
+		<div><span class="option_title">错误列表长度 : </span><select id="OPTION_ERROR_SIZE" onchange="changeOption()"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大总正确次数 : </span><select id="OPTION_MAX_CORRECT_TM" onchange="changeOption()"><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option></select></div>
+		<div><span class="option_title">所需正确次数 : </span><select id="OPTION_NEED_CORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大重复错误次数 : </span><select id="OPTION_MAX_REPEAT_ERROR" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+		<div><span class="option_title">所需更正次数 : </span><select id="OPTION_NEED_RECORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">显示列表信息 : </span><input type="checkbox" id="OPTION_SHOW_LIST" checked="" onchange="changeOption()"></div>
+	</div>
+
+
+	<div id="aff" style="display: block;">
+		<div id="waiting_div" class="list_aff"></div>
+		<div id="current_div" class="list_aff"></div>
+		<div id="error_div" class="list_aff"><div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+</div>
+		<div id="finished_div" class="list_aff"></div>
+
+	</div>
+
+	<div id="testarea">1920</div>
+
+
+
+</div>
+<script type="text/javascript">
+	initLists();
+	affLists();	
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showStartButtonsByCondition();
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	hideDetail();
+
+	initOptions();
+	loadTxt("remaniement	n.m.	(内阁)改组	le président prépare un remaniement ministériel.	总统正在筹划内阁改组。	根：拉丁语 re-（再）+ manus（手）→ 改组；同源：manier（操作）、main（手）\ndissolution	n.f.	解散(议会/组织)	la dissolution de l'assemblée a surpris les députés.	议会的解散令议员们感到震惊。	根：拉丁语 dissolutio（解散，dis- 分开 + solvere 解开）→ 解散；同源：dissoudre（溶解）、solution（溶液）\nlaïcité	n.f.	世俗化/政教分离	la laïcité est un pilier de la république française.	世俗主义是法兰西共和国的支柱。	根：希腊语 laikos（平民的，laos 人民）→ 政教分离；同源：laïque（世俗的）、laïc（平信徒）\nsouveraineté	n.f.	主权	le débat porte sur la souveraineté numérique.	辩论的焦点是数字主权。	根：拉丁语 superanus（至高的，super 上面）→ 主权；同源：souverain（君主）、suprême（最高的）\nrevendication	n.f.	诉求/要求	les syndicats portent des revendications salariales.	工会提出了加薪诉求。	根：拉丁语 re-（再）+ vindicare（要求，声称）→ 诉求；同源：revendiquer（要求）、vengeance（复仇）\nréférendum	n.m.	全民公投	le gouvernement exclut de recourir au référendum.	政府排除举行全民公投的可能性。	根：拉丁语 referendum（应被提交的，referre 提交）→ 公投；同源：référer（提交）、référence（参考）\nlégiférer	v.i.	立法	il devient urgent de légiférer sur l'intelligence artificielle.	对人工智能进行立法已刻不容缓。	根：拉丁语 lex（法律）+ ferre（带来）→ 立法；同源：législation（立法）、loi（法律）\nclivage	n.m.	分歧/鸿沟	ce sujet accentue le clivage droite-gauche.	这一议题加剧了左右翼的分歧。	根：日耳曼语 klieben（分裂）→ 分歧；同源：cliver（分裂）、clivé（分裂的）\nprécarité	n.f.	不稳定状态(生活/就业)	de nombreux jeunes vivent dans une grande précarité.	许多年轻人生活在极度贫困中。	根：拉丁语 precarius（不稳定的，prex 祈求）→ 不稳定；同源：précaire（不稳定的）、prière（祈祷）\némancipation	n.f.	解放/自主	l'émancipation des femmes passe par l'éducation.	妇女的解放取决于教育。	根：拉丁语 emancipatio（解放，e- 出 + manus 手 + capere 拿）→ 解放；同源：émanciper（解放）、capture（捕获）\nstigmatiser	v.t.	污名化/指责	il ne faut pas stigmatiser les quartiers populaires.	不应污名化贫民区。	根：希腊语 stigma（烙印，刺）→ 污名化；同源：stigmate（耻辱标记）、instiguer（煽动）\ndispositif	n.m.	措施/方案/部署	le gouvernement lance un nouveau dispositif d'aide.	政府推出了一项新的援助措施。	根：拉丁语 disponere（安排，dis- 分开 + ponere 放）→ 机制；同源：disposer（安排）、position（位置）\nparité	n.f.	平等/配额(男女比)	la loi impose la parité sur les listes électorales.	法律规定选举名单必须男女比例平等。	根：拉丁语 paritas（相等，par 相等的）→ 平等；同源：pair（同等的）、comparaison（比较）\néligible	adj.	有资格当选的/符合条件的	ce projet est éligible aux subventions européennes.	该项目符合获得欧洲补贴的条件。	根：拉丁语 eligibilis（可选的，eligere 选择）→ 有资格的；同源：élire（选举）、élection（选举）\nabstention	n.f.	弃权(投票)	le fort taux d'abstention inquiète les observateurs.	高弃权率令观察家们感到担忧。	根：拉丁语 abstentio（弃权，abs- 离开 + tenere 持）→ 弃权；同源：abstenir（弃权）、tenir（持有）\nscrutin	n.m.	投票/选举过程	le scrutin se déroulera dimanche prochain.	投票将于下周日进行。	根：拉丁语 scrutinium（检查，scrutari 仔细检查）→ 投票；同源：scruter（审视）、inscrutable（难以理解的）\nremaniement	n.m.	改组/调整	un remaniement de la direction est à l'étude.	领导层改组正在研究中。	根：拉丁语 re-（再）+ manus（手）→ 改组；同源：manier（操作）、main（手）\ncoalition	n.f.	联盟/联合政府	les partis tentent de former une coalition.	各政党正试图组建联合政府。	根：拉丁语 coalitio（联合，co- 共同 + alescere 成长）→ 联盟；同源：coaliser（联合）、alliance（联盟）\nclandestin	adj./n.	秘密的/非法移民	le travail clandestin est sévèrement puni.	非法用工受到严厉惩处。	根：拉丁语 clandestinus（秘密的，clam 秘密地）→ 秘密的；同源：clandestinité（秘密状态）、clamer（呼喊）\ndémagogie	n.f.	煽动/蛊惑人心	il est tombé dans la démagogie électorale.	他陷入了选举煽动主义。	根：希腊语 dēmagōgia（煽动，dēmos 人民 + agein 引导）→ 煽动；同源：démagogue（煽动者）、démocratie（民主）\nmilitant	n.m./adj.	激进分子/积极分子	c'est un militant écologiste de longue date.	他是一位资深的环保活动家。	根：拉丁语 militans（战斗的，militare 当兵）→ 活动家；同源：militer（斗争）、militaire（军事的）\nsyndicat	n.m.	工会	le syndicat appelle à une grève nationale.	工会号召进行全国性罢工。	根：希腊语 syndikos（代表，syn- 共同 + dikē 正义）→ 工会；同源：syndicalisme（工会主义）、syndic（管理员）\nconventionnel	adj.	常规的/约定的	un armement conventionnel.	常规武装力量。	根：拉丁语 conventio（协议，con- 共同 + venire 来）→ 常规的；同源：convention（公约）、venir（来）\nmandat	n.m.	任期/授权	le mandat présidentiel dure cinq ans.	总统任期为五年。	根：拉丁语 mandatum（命令，mandare 委托）→ 任期；同源：mandataire（代理人）、commander（命令）\namendement	n.m.	修正案	l'opposition a déposé un amendement.	反对派提出了一项修正案。	根：拉丁语 emendare（改正，e- 出 + menda 错误）→ 修正案；同源：amender（修正）、amende（罚款）\nratifier	v.t.	批准/认可(条约)	le parlement doit ratifier cet accord international.	议会必须批准这项国际协定。	根：拉丁语 ratus（批准的）+ facere（做）→ 批准；同源：ratification（批准）、raison（理由）\nclémence	n.f.	仁慈/宽大处理	l'accusé a sollicité la clémence du juge.	被告请求法官从宽处理。	根：拉丁语 clementia（仁慈，clemens 温和的）→ 宽恕；同源：clément（仁慈的）、inclément（严酷的）\nrépression	n.f.	镇压/压制	la répression de la manifestation a été violente.	对游行的镇压十分暴力。	根：拉丁语 repressio（镇压，re- 回 + premere 压）→ 镇压；同源：réprimer（镇压）、pression（压力）\ninsurrection	n.f.	起义/暴动	une insurrection a éclaté dans la capitale.	首都爆发了起义。	根：拉丁语 insurrectio（起义，in- 向上 + surgere 起来）→ 起义；同源：insurger（起义）、surgir（涌现）\ndissidence	n.f.	持不同政见	il est entré en dissidence contre son parti.	他开始公开反抗所属政党。	根：拉丁语 dissidentia（不一致，dis- 分开 + sedere 坐）→ 异议；同源：dissident（持不同政见者）、séance（会议）\nprotocole	n.m.	礼仪/议定书	le protocole sanitaire a été assoupli.	防疫方案已放宽。	根：希腊语 prōtokollon（第一页，prōtos 第一 + kolla 胶）→ 议定书；同源：prototype（原型）、colle（胶水）\nhégémonie	n.f.	霸权	l'hégémonie culturelle d'une grande puissance.	一个大国的文化霸权。	根：希腊语 hēgemonia（领导权，hēgemōn 领袖）→ 霸权；同源：hégémonique（霸权的）、agir（行动）\ningérence	n.f.	干涉(内政)	il dénonce l'ingérence étrangère dans le pays.	他谴责外国对该国的干涉。	根：拉丁语 in-（进入）+ gerere（管理）→ 干涉；同源：ingérer（干涉）、gérer（管理）\nsubvention	n.f.	补贴/资助	l'association vit grâce aux subventions.	该协会靠补贴生存。	根：拉丁语 subventio（援助，sub- 下面 + venire 来）→ 补贴；同源：subventionner（补贴）、venir（来）\nfiscalité	n.f.	税制	une réforme de la fiscalité locale.	地方税制改革。	根：拉丁语 fiscalis（国库的，fiscus 钱篮）→ 税收；同源：fiscal（财政的）、fisc（国库）\névasion fiscale	loc.f.	逃税	la lutte contre l'évasion fiscale est une priorité.	打击逃税是首要任务。	不适用单词\naustérité	n.f.	紧缩政策	une politique d'austérité budgétaire.	财政紧缩政策。	根：拉丁语 austeritas（严酷，austerus 严厉的）→ 紧缩；同源：austère（严峻的）、sévère（严厉的）\nretraite	n.f.	退休/退休金	la réforme des retraites fait polémique.	退休金改革引发了争议。	根：拉丁语 re-（回）+ trahere（拉）→ 退休；同源：retirer（撤回）、traire（挤奶）\nchômage	n.m.	失业	le taux de chômage est en baisse.	失业率正在下降。	根：希腊语 kauma（炎热，停工时间）→ 失业；同源：chômer（休息）、chômeur（失业者）\ncroissance	n.f.	增长	la croissance économique est atone.	经济增长乏力。	根：拉丁语 crescere（生长）→ 增长；同源：croître（增长）、accroître（增加）\nrécession	n.f.	衰退	l'économie européenne entre en récession.	欧洲经济进入衰退。	根：拉丁语 recessio（后退，re- 回 + cedere 走）→ 衰退；同源：recéder（退回）、céder（让步）\ninflation	n.f.	通货膨胀	l'inflation réduit le pouvoir d'achat.	通货膨胀降低了购买力。	根：拉丁语 inflatio（膨胀，in- 进入 + flare 吹）→ 通货膨胀；同源：gonfler（膨胀）、souffler（吹）\ndéficit	n.m.	赤字	creuser le déficit public.	扩大公共赤字。	根：拉丁语 deficit（缺少，de- 离开 + facere 做）→ 赤字；同源：déficitaire（亏损的）、défaillance（缺陷）\ndette	n.f.	债务	le remboursement de la dette publique.	偿还公共债务。	根：拉丁语 debita（欠债，debere 欠）→ 债务；同源：devoir（欠，应该）、débiteur（债务人）\npouvoir d'achat	n.m.	购买力	préserver le pouvoir d'achat des ménages.	维持家庭购买力。	不适用单词\nsmic	n.m.	法定最低工资	une revalorisation du smic.	提高最低工资（SMIC）。	不适用单词\nprérogative	n.f.	特权/职权	c'est une prérogative du premier ministre.	这是总理的特权。	根：拉丁语 praerogativa（优先权，prae- 前 + rogare 问）→ 特权；同源：interroger（询问）、déroger（违背）\ninstaurer	v.t.	建立/设立	instaurer un dialogue constructif.	建立建设性对话。	根：拉丁语 instaurare（建立，in- 进入 + staurare 设立）→ 建立；同源：restaurer（恢复）、statuaire（雕像的）\nabolir	v.t.	废除	abolir la peine de mort.	废除死刑。	根：拉丁语 abolere（废除）→ 废除；同源：abolition（废除）、abolitionisme（废奴主义）\npromulguer	v.t.	颁布(法律)	la loi a été promulguée hier.	该法律于昨天颁布。	根：拉丁语 promulgare（颁布，pro- 向前 + mulgare 公布）→ 颁布；同源：promulgation（颁布）、divulguer（泄露）\ncensurer	v.t.	审查/谴责	le gouvernement a été censuré par l'assemblée.	政府遭到了议会的弹劾。	根：拉丁语 censere（评估，审查）→ 审查；同源：censure（审查）、censeur（审查官）\ninvestiture	n.f.	就职仪式/提名	le candidat a reçu l'investiture de son parti.	候选人获得了所属政党的提名。	根：拉丁语 investitura（授职，in- 进入 + vestire 穿衣）→ 就职；同源：investir（投资）、vêtir（穿衣）\nscrutin	n.m.	投票/选举	le mode de scrutin proportionnel.	比例代表制选举模式。	根：拉丁语 scrutinium（检查，scrutari 仔细检查）→ 投票；同源：scruter（审视）、inscrutable（难以理解的）\nsuffrage	n.m.	选举权/投票	le suffrage universel direct.	直接普选制。	根：拉丁语 suffragium（投票，支持）→ 选举权；同源：suffragette（女权主义者）、suffrages（选票）\nbureaucratie	n.f.	官僚主义	simplifier la bureaucratie administrative.	简化行政官僚机构。	根：法语 bureau（办公室）+ 希腊语 kratos（权力）→ 官僚主义；同源：bureaucrate（官僚）、démocratie（民主）\nélitisme	n.m.	精英主义	critiquer l'élitisme des grandes écoles.	批评精英学校的精英主义。	根：拉丁语 eligere（选择）→ 精英主义；同源：élite（精英）、élire（选举）\nméritocratie	n.f.	唯才是举/精英制度	la méritocratie est remise en cause.	精英选拔制度（唯才主义）受到质疑。	根：拉丁语 meritum（功绩）+ 希腊语 kratos（权力）→ 精英统治；同源：mérite（功绩）、mériter（应得）\nsolidarité	n.f.	团结/互助	la solidarité nationale face à la crise.	面对危机时的国家团结。	根：拉丁语 solidus（坚固的，整体的）→ 团结；同源：solide（坚固的）、solidaire（团结的）\ncohésion	n.f.	凝聚力	renforcer la cohésion sociale.	加强社会凝聚力。	根：拉丁语 cohaesio（粘合，co- 共同 + haerere 粘）→ 凝聚；同源：cohérent（连贯的）、adhésion（附着）\nintégration	n.f.	融合/集成	favoriser l'intégration des immigrés.	促进移民融入。	根：拉丁语 integratio（整合，integer 完整的）→ 融合；同源：intégrer（整合）、intègre（正直的）\nassimilation	n.f.	同化	le modèle français de l'assimilation.	法国的同化模式。	根：拉丁语 assimilatio（同化，ad- 向 + similis 相似）→ 同化；同源：assimiler（同化）、similaire（相似的）\ndiscrimination	n.f.	歧视	lutter contre les discriminations à l'embauche.	打击招聘中的歧视。	根：拉丁语 discriminatio（区别，discernere 区分）→ 歧视；同源：discriminer（歧视）、discerner（辨别）\nségrégation	n.f.	隔离/排斥	dénoncer la ségrégation spatiale.	谴责空间隔离。	根：拉丁语 segregatio（分离，se- 分开 + grex 群）→ 隔离；同源：ségrégationnisme（种族隔离主义）、grégaire（群居的）\nghettoïsation	n.f.	贫民窟化	éviter la ghettoïsation des banlieues.	避免郊区贫民窟化。	根：意大利语 ghetto（犹太人区）→ 贫民区化；同源：ghetto（贫民区）、ghettoïser（使边缘化）\nradicalisation	n.f.	激进化	la lutte contre la radicalisation en ligne.	打击网络激进化。	根：拉丁语 radicalis（根本的，radix 根）→ 激进化；同源：radical（激进的）、racine（根）\nextrémisme	n.m.	极端主义	la montée de l'extrémisme en Europe.	欧洲极端主义的崛起。	根：拉丁语 extremus（最外的，极端的）→ 极端主义；同源：extrême（极端的）、extrémité（极端）\npopulisme	n.m.	民粹主义	le discours teinté de populisme.	带有民粹主义色彩的演说。	根：拉丁语 populus（人民）→ 民粹主义；同源：populaire（流行的）、peuple（人民）\nnationalisme	n.m.	民族主义	le regain du nationalisme.	民族主义的抬头。	根：拉丁语 natio（民族，nasci 出生）→ 民族主义；同源：nation（国家）、natif（本地的）\npatriotisme	n.m.	爱国主义	un élan de patriotisme.	爱国主义的热潮。	根：希腊语 patris（祖国，patēr 父亲）→ 爱国主义；同源：patriote（爱国者）、père（父亲）\nprotectionnisme	n.m.	保护主义	le retour du protectionnisme commercial.	贸易保护主义的回归。	根：拉丁语 protectio（保护，pro- 前 + tegere 覆盖）→ 保护主义；同源：protéger（保护）、toit（屋顶）\nmondialisation	n.f.	全球化	les effets de la mondialisation sur l'emploi.	全球化对就业的影响。	根：拉丁语 mundus（世界）→ 全球化；同源：mondial（世界的）、monde（世界）\ndélocalisation	n.f.	(企业)外迁	la délocalisation des usines vers l'Asie.	工厂向亚洲迁移。	根：拉丁语 de-（离开）+ locus（地方）→ 外包；同源：délocaliser（外迁）、localiser（定位）\nréindustrialisation	n.f.	重新工业化	la réindustrialisation est un enjeu majeur.	再工业化是一个重大挑战。	根：拉丁语 re-（再）+ industria（勤劳）→ 再工业化；同源：industrie（工业）、industriel（工业的）\nsouverainisme	n.m.	主权主义	le courant souverainiste.	主权派思潮。	根：拉丁语 superanus（至高的）→ 主权主义；同源：souverain（主权的）、souveraineté（主权）\nfédéralisme	n.m.	联邦主义	le débat sur le fédéralisme européen.	关于欧洲联邦主义的辩论。	根：拉丁语 foedus（联盟，条约）→ 联邦主义；同源：fédération（联邦）、confédération（邦联）\ncentralisation	n.f.	集权化	la France a une tradition de centralisation.	法国有集权传统。	根：拉丁语 centralis（中心的，centrum 中心）→ 集权；同源：central（中心的）、centre（中心）\ndécentralisation	n.f.	权力下放	l'acte III de la décentralisation.	分权改革的“第三幕”。	根：拉丁语 de-（离开）+ centralis（中心的）→ 分权；同源：décentraliser（分权）、central（中心的）\ncollectivité	n.f.	地方当局/集体	les collectivités territoriales.	地方行政主体。	根：拉丁语 collectivus（集体的，con- 共同 + legere 收集）→ 集体；同源：collectif（集体的）、collection（收藏）\ncommune	n.f.	市镇	le maire est le chef de la commune.	市长是市镇的首长。	根：拉丁语 communis（共同的）→ 市镇；同源：communauté（社区）、commun（共同的）\nintercommunalité	n.f.	市镇联盟	renforcer l'intercommunalité.	加强市镇间合作。	根：拉丁语 inter-（之间）+ communis（共同的）→ 跨市镇合作；同源：intercommunal（跨市镇的）、commune（市镇）\nmétropolisation	n.f.	大都市化	la métropolisation du territoire.	领土的大都市化。	根：希腊语 mētropolis（大都市，mētēr 母 + polis 城）→ 大都市化；同源：métropole（大都市）、politique（政治）\nfracture	n.f.	断裂/鸿沟	réduire la fracture sociale.	缩小社会鸿沟。	根：拉丁语 fractura（断裂，frangere 破）→ 断裂；同源：fracturer（折断）、fraction（分数）\npaupérisation	n.f.	贫困化	la paupérisation des classes moyennes.	中产阶级的贫困化。	根：拉丁语 pauper（穷人）→ 贫困化；同源：pauvre（穷的）、pauvreté（贫困）\nbourgeoisie	n.f.	资产阶级	la petite bourgeoisie urbaine.	城市小资产阶级。	根：古法语 bourg（市镇，日耳曼语源）→ 资产阶级；同源：bourgeois（资产阶级的）、faubourg（郊区）\nprolétariat	n.m.	无产阶级	la condition du prolétariat au XIXe siècle.	19世纪无产阶级的状况。	根：拉丁语 proletarius（最底层公民，proles 后代）→ 无产阶级；同源：prolétaire（无产者）、proliférer（繁殖）\nsyndicalisme	n.m.	工会主义	l'histoire du syndicalisme français.	法国工会运动史。	根：希腊语 syndikos（代表，syn- 共同 + dikē 正义）→ 工会主义；同源：syndicat（工会）、syndical（工会的）\nnégociation	n.f.	谈判	entamer des négociations annuelles.	启动年度协商。	根：拉丁语 negotiatio（生意，nec 非 + otium 闲暇）→ 谈判；同源：négocier（谈判）、négoce（贸易）\ncompromis	n.m.	妥协	trouver un compromis acceptable.	达成可接受的妥协。	根：拉丁语 compromissum（相互承诺，con- 共同 + promittere 承诺）→ 妥协；同源：compromettre（妥协）、promettre（承诺）\nconsensus	n.m.	共识	un consensus se dégage sur la question.	在该问题上正形成共识。	根：拉丁语 consensus（一致，con- 共同 + sentire 感觉）→ 共识；同源：consentir（同意）、sentiment（感情）\nlitige	n.m.	争端	régler un litige foncier.	解决土地纠纷。	根：拉丁语 litigium（争论，lis 争执）→ 诉讼；同源：litigieux（有争议的）、litiger（诉讼）\ncontentieux	n.m.	争议/争端部	il existe un contentieux entre les deux pays.	两国之间存在诉讼争端。	根：拉丁语 contentiosus（好争论的，contendere 争）→ 争议；同源：contention（争论）、contester（质疑）\nmédiation	n.f.	调解	une mission de médiation.	调解任务。	根：拉丁语 mediatio（调解，medius 中间）→ 调解；同源：médiateur（调解人）、milieu（中间）\narbitrage	n.m.	仲裁	l'arbitrage du conseil constitutionnel.	宪法委员会的裁决。	根：拉丁语 arbitratus（仲裁，arbiter 裁判）→ 仲裁；同源：arbitre（仲裁者）、arbitraire（任意的）\njuridiction	n.f.	司法权/管辖区	cela relève de la juridiction administrative.	这属于行政管辖范围。	根：拉丁语 juridictio（司法权，jus 法 + dicere 说）→ 司法管辖权；同源：juridique（法律的）、dire（说）\nconstitutionnalité	n.f.	符合宪法性	vérifier la constitutionnalité d'une loi.	审查法律的合宪性。	根：拉丁语 constitutio（组织，con- 共同 + statuere 设立）→ 合宪性；同源：constitution（宪法）、statut（章程）\nrecours	n.m.	诉诸/求助/上诉	déposer un recours devant le conseil d'état.	向最高行政法院提起诉。	根：拉丁语 recursus（追诉，re- 回 + currere 跑）→ 上诉；同源：recourir（求助）、courir（跑）\nimpunité	n.f.	不受惩罚	dénoncer l'impunité des élites.	谴责精英阶层的逍遥法外。	根：拉丁语 impunitas（免罚，in- 无 + poena 惩罚）→ 有罪不罚；同源：punir（惩罚）、peine（惩罚）\nimmunité	n.f.	豁免权	lever l'immunité parlementaire.	取消议会豁免权。	根：拉丁语 immunitas（免除，in- 无 + munus 义务）→ 豁免权；同源：immun（免疫的）、immuniser（免疫）\ndéontologie	n.f.	职业道德	respecter la déontologie journalistique.	遵守新闻从业道德。	根：希腊语 deon（义务）+ logos（学）→ 职业道德；同源：déontologique（职业道德的）、devoir（义务）\néthique	n.f.	伦理	le comité consultatif national d'éthique.	国家伦理咨询委员会。	根：希腊语 ēthikos（道德的，ēthos 习俗）→ 伦理；同源：éthos（精神气质）、ethnique（民族的）\ntransparence	n.f.	透明度	exiger la transparence de la vie publique.	要求公共生活透明化。	根：拉丁语 trans-（穿过）+ parere（出现）→ 透明；同源：transparent（透明的）、paraître（出现）\ncorruption	n.f.	腐败	une affaire de corruption présumée.	一起涉嫌腐败的案件。	根：拉丁语 corruptio（腐败，cor- 加强 + rumpere 破）→ 腐败；同源：corrompre（腐蚀）、rupture（破裂）\nnépotisme	n.m.	裙带关系	être accusé de népotisme.	被指控裙带关系。	根：拉丁语 nepos（侄子）→ 裙带关系；同源：neveu（侄子）、népote（侄子，古词）\nfavoritisme	n.m.	徇私	une plainte pour favoritisme.	关于优亲厚友（非法谋利）的投诉。	根：拉丁语 favor（恩惠）→ 偏袒；同源：faveur（恩惠）、favoriser（偏爱）\nclientélisme	n.m.	侍从主义/拉帮结派	le clientélisme électoral.	选票寻租（客户主义）。	根：拉丁语 cliens（受保护人）→ 庇护主义；同源：client（客户）、clientèle（客户群）\nlobbying	n.m.	游说	le lobbying des laboratoires pharmaceutiques.	制药实验室的游说活动。	根：英语 lobby（大厅，中世纪拉丁语 lobia）→ 游说；同源：lobbyiste（说客）、loge（包厢）\ninfluence	n.f.	影响/势力	un trafic d'influence.	权钱交易（影响力交易）。	根：拉丁语 influere（流入，in- 进入 + fluere 流）→ 影响；同源：influencer（影响）、flux（流量）\nmanipulation	n.f.	操纵	dénoncer une manipulation de l'opinion.	谴责操纵舆论。	根：拉丁语 manipulus（一把，manus 手 + plere 填）→ 操纵；同源：manipuler（操纵）、main（手）\npropagande	n.f.	宣传	la propagande de guerre.	战争宣传。	根：拉丁语 propaganda（应传播的，propagare 传播）→ 宣传；同源：propager（传播）、propagation（传播）\ncensure	n.f.	审查制	la censure des réseaux sociaux.	社交网络审查。	根：拉丁语 censura（审查，censere 评估）→ 审查；同源：censurer（审查）、censeur（审查官）\nliberté d'expression	n.f.	言论自由	défendre la liberté d'expression.	捍卫言论自由。	不适用单词\npluralisme	n.m.	多元化	garantir le pluralisme de la presse.	保证新闻多元化。	根：拉丁语 pluralis（多数的，plus 更多）→ 多元主义；同源：pluriel（复数的）、plusieurs（几个）\némancipation	n.f.	解放/独立	un désir d'émancipation.	解放的欲望。	根：拉丁语 emancipatio（解放，e- 出 + manus 手 + capere 拿）→ 解放；同源：émanciper（解放）、capture（捕获）\nsubversion	n.f.	颠覆	une tentative de subversion.	颠覆企图。	根：拉丁语 subversio（颠覆，sub- 下 + vertere 转）→ 颠覆；同源：subversif（颠覆性的）、verser（倾倒）\ninsurrection	n.f.	起义	une insurrection populaire.	人民起义。	根：拉丁语 insurrectio（起义，in- 向上 + surgere 起来）→ 起义；同源：insurger（起义）、surgir（涌现）\nrévolte	n.f.	反抗	un vent de révolte.	反抗之风。	根：拉丁语 revolvere（推翻，re- 回 + volvere 滚）→ 反叛；同源：révolter（反叛）、révolution（革命）\némeute	n.f.	骚乱	des émeutes urbaines.	城市骚乱。	根：古法语 esmeute（骚动，源自日耳曼语）→ 骚乱；同源：émeutier（暴徒）、émouvoir（感动）\nrépression	n.f.	镇压	la répression d'un mouvement.	对运动的镇压。	根：拉丁语 repressio（镇压，re- 回 + premere 压）→ 镇压；同源：réprimer（镇压）、pression（压力）\npacification	n.f.	平定/安抚	une politique de pacification.	平定政策。	根：拉丁语 pacificatio（和平化，pax 和平 + facere 做）→ 平定；同源：pacifier（平定）、paix（和平）\nréconciliation	n.f.	和解	la réconciliation franco-allemande.	法德和解。	根：拉丁语 reconciliatio（和解，re- 再 + conciliare 联合）→ 和解；同源：réconcilier（和解）、concilier（调和）\ncommémoration	n.f.	纪念仪式	la commémoration de l'armistice.	停战协定纪念活动。	根：拉丁语 commemoratio（纪念，con- 共同 + memorare 记忆）→ 纪念；同源：commémorer（纪念）、mémoire（记忆）\ndevoir de mémoire	n.m.	记忆的义务	cultiver le devoir de mémoire.	培养铭记历史的义务。	不适用单词\nidentité	n.f.	身份/认同	l'identité nationale.	民族认同。	根：拉丁语 identitas（同一性，idem 同样的）→ 身份；同源：identifier（识别）、identique（相同的）\nappartenance	n.f.	归属感	un sentiment d'appartenance.	归属感。	根：拉丁语 ad-（向）+ pertinere（属于）→ 归属；同源：appartenir（属于）、pertinent（相关的）\ncohésion	n.f.	凝聚力	la cohésion des territoires.	地区凝聚力。	根：拉丁语 cohaesio（粘合，co- 共同 + haerere 粘）→ 凝聚；同源：cohérent（连贯的）、adhésion（附着）\nexclusion	n.f.	排除/排斥	lutter contre l'exclusion sociale.	打击社会排斥。	根：拉丁语 exclusio（排除，ex- 出 + claudere 关闭）→ 排斥；同源：exclure（排除）、clore（关闭）\nmarginalisation	n.f.	边缘化	la marginalisation des plus pauvres.	贫困人群的边缘化。	根：拉丁语 marginalis（边缘的，margo 边缘）→ 边缘化；同源：marginal（边缘的）、marge（边缘）\nvulnérabilité	n.f.	脆弱性	la vulnérabilité des personnes âgées.	老年人的脆弱性。	根：拉丁语 vulnerabilis（易受伤的，vulnus 伤口）→ 脆弱性；同源：vulnérable（脆弱的）、blessure（伤口）\nrésilience	n.f.	韧性/恢复力	la résilience de la société.	社会的韧性。	根：拉丁语 resilire（弹回，re- 回 + salire 跳）→ 韧性；同源：résilient（有韧性的）、saillir（突出）\nmutations	n.f.pl.	变革/转变	les mutations technologiques.	技术变革。	根：拉丁语 mutatio（变化，mutare 改变）→ 变革；同源：muter（变化）、mutation（突变）\ntransition	n.f.	转型	la transition écologique.	生态转型。	根：拉丁语 transitio（过渡，trans- 越过 + ire 去）→ 过渡；同源：transiter（过境）、aller（去）\nréforme	n.f.	改革	une réforme structurelle.	结构性改革。	根：拉丁语 reformare（改造，re- 再 + formare 形成）→ 改革；同源：réformer（改革）、forme（形式）\nremaniement	n.m.	调整/改组	un remaniement budgétaire.	预算调整。	根：拉丁语 re-（再）+ manus（手）→ 改组；同源：manier（操作）、main（手）\nmodernisation	n.f.	现代化	la modernisation de l'état.	国家现代化。	根：拉丁语 modernus（现代的，modo 刚才）→ 现代化；同源：moderne（现代的）、mode（方式）\nprivatisation	n.f.	私有化	la privatisation d'une entreprise publique.	国营企业的私有化。	根：拉丁语 privatus（私人的，privare 剥夺）→ 私有化；同源：privé（私人的）、priver（剥夺）\nnationalisation	n.f.	国有化	une menace de nationalisation.	国有化的威胁。	根：拉丁语 natio（民族，nasci 出生）→ 国有化；同源：national（国家的）、nation（国家）\nlibéralisation	n.f.	自由化	la libéralisation des prix.	价格自由化。	根：拉丁语 liberalis（自由的，liber 自由的）→ 自由化；同源：libéral（自由的）、liberté（自由）\ndérégulation	n.f.	取消管制	la dérégulation financière.	金融监管放松。	根：拉丁语 de-（去除）+ regula（规则）→ 放松管制；同源：réguler（规范）、règle（规则）\nprotectionnisme	n.m.	保护主义	un virage protectionnisme.	向保护主义转向。	根：拉丁语 protectio（保护，pro- 前 + tegere 覆盖）→ 保护主义；同源：protéger（保护）、toit（屋顶）\nmondialisation	n.f.	全球化	les gagnants de la mondialisation.	全球化的赢家。	根：拉丁语 mundus（世界）→ 全球化；同源：mondial（世界的）、monde（世界）\naltermondialisme	n.m.	另类全球化运动	le mouvement altermondialiste.	另类全球化运动。	根：拉丁语 alter（另一个）+ mundus（世界）→ 反全球化；同源：alternatif（另类的）、mondial（世界的）\nhumanitaire	adj./n.	人道主义(的)	une aide humanitaire.	人道主义援助。	根：拉丁语 humanitas（人性，humanus 人的）→ 人道的；同源：humain（人类的）、humanité（人性）\nphilanthropie	n.f.	慈善/博爱	faire preuve de philanthropie.	表现出博爱精神。	根：希腊语 philanthrōpia（爱人类，philein 爱 + anthrōpos 人）→ 慈善；同源：philanthrope（慈善家）、anthropologie（人类学）\nbénévolat	n.m.	志愿者工作	le bénévolat associatif.	协会志愿者工作。	根：拉丁语 bene（好）+ velle（愿意）→ 志愿服务；同源：bénévole（志愿者）、bienveillant（仁慈的）\nengagement	n.m.	投入/承诺	un engagement citoyen.	公民参与。	根：日耳曼语 gagier（抵押，保证）→ 参与；同源：engager（投入）、gage（抵押品）\nmilitantisme	n.m.	激进主义/投身运动	le militantisme politique.	政治活动积极主义。	根：拉丁语 militare（当兵，战斗）→ 激进主义；同源：militant（活动家）、militer（斗争）\nactivisme	n.m.	行动主义	l'activisme sur les réseaux sociaux.	社交网络上的激进活动。	根：拉丁语 activus（活跃的，agere 做）→ 行动主义；同源：actif（积极的）、action（行动）\nlobbying	n.m.	游说	un cabinet de lobbying.	游说事务所。	根：英语 lobby（大厅，中世纪拉丁语 lobia）→ 游说；同源：lobbyiste（说客）、loge（包厢）\ninfluence	n.f.	影响	exercer une influence.	施加影响。	根：拉丁语 influere（流入，in- 进入 + fluere 流）→ 影响；同源：influencer（影响）、flux（流量）\npouvoir	n.m.	权力	l'exercice du pouvoir.	权力的行使。	根：拉丁语 potere（能够，potens 有力的）→ 权力；同源：puissance（力量）、potentiel（潜在的）\nautorité	n.f.	权威	une perte d'autorité.	权威的丧失。	根：拉丁语 auctoritas（权威，auctor 创造者）→ 权威；同源：auteur（作者）、autoriser（授权）\nlégitimité	n.f.	合法性	contester la légitimité.	质疑合法性。	根：拉丁语 legitimitas（合法性，lex 法律）→ 合法性；同源：légitime（合法的）、loi（法律）\nhiérarchie	n.f.	等级制	respecter la hiérarchie.	尊重等级制度。	根：希腊语 hierarchia（神职等级，hieros 神圣 + archein 统治）→ 等级制度；同源：hiérarchique（等级的）、archange（大天使）\nanarchie	n.f.	无政府状态	frôler l'anarchie.	接近无政府状态。	根：希腊语 anarchia（无政府，an- 无 + archein 统治）→ 无政府；同源：anarchiste（无政府主义者）、monarchie（君主制）\ndictature	n.f.	独裁	instaurer une dictature.	建立独裁统治。	根：拉丁语 dictatura（独裁，dictare 命令）→ 独裁；同源：dictateur（独裁者）、dicter（口述）\ntotalitarisme	n.m.	极权主义	les dérives du totalitarisme.	极权主义的偏差。	根：拉丁语 totalis（全部的，totus 全部）→ 极权主义；同源：total（总的）、totalité（全部）\nautoritarisme	n.m.	专制	un régime teinté d'autoritarisme.	带有专制色彩的政权。	根：拉丁语 auctoritas（权威）→ 威权主义；同源：autoritaire（专制的）、autorité（权威）\ndémocratie	n.f.	民主	la démocratie représentative.	代议制民主。	根：希腊语 dēmokratia（民主，dēmos 人民 + kratos 权力）→ 民主；同源：démocrate（民主派）、démographie（人口学）\nrépublique	n.f.	共和国	les valeurs de la république.	共和国价值观。	根：拉丁语 res publica（公共事务，res 事 + publicus 公共的）→ 共和国；同源：républicain（共和的）、public（公共的）\nmonarchie	n.f.	君主制	une monarchie constitutionnelle.	君主立宪制。	根：希腊语 monarchia（君主制，monos 单一 + archein 统治）→ 君主制；同源：monarque（君主）、monopole（垄断）\nthéocratie	n.f.	神权政治	un état théocratique.	神权国家。	根：希腊语 theokratia（神权统治，theos 神 + kratos 权力）→ 神权政治；同源：théocratique（神权的）、théologie（神学）\noligarchie	n.f.	寡头政治	critiquer l'oligarchie financière.	批评金融寡头。	根：希腊语 oligarchia（寡头统治，oligos 少数 + archein 统治）→ 寡头政治；同源：oligarque（寡头）、anarchie（无政府）\naristocratie	n.f.	贵族政治	l'ancienne aristocratie.	旧贵族。	根：希腊语 aristokratia（贵族统治，aristos 最好的 + kratos 权力）→ 贵族政治；同源：aristocrate（贵族）、démocrate（民主派）\nméritocratie	n.f.	精英制度	croire en la méritocratie.	相信精英选拔制度。	根：拉丁语 meritum（功绩）+ 希腊语 kratos（权力）→ 精英统治；同源：mérite（功绩）、mériter（应得）\nparlementarisme	n.m.	议会制	la crise du parlementarisme.	议会制度的危机。	根：法语 parlement（议会，parler 说）→ 议会制；同源：parlementaire（议会的）、parler（说）\nbicamérisme	n.m.	两院制	le bicamérisme à la française.	法式两院制。	根：拉丁语 bi-（双）+ camera（房间）→ 两院制；同源：bicaméral（两院的）、chambre（房间）\nscission	n.f.	分裂/脱离	une scission au sein du parti.	政党内部分裂。	根：拉丁语 scissio（分裂，scindere 切）→ 分裂；同源：scinder（分裂）、incision（切口）\nralliement	n.m.	归附/集结	le ralliement d'un opposant.	反对者的归顺。	根：法语 rallier（重新联合，re- 再 + allier 联合）→ 团结；同源：rallier（团结）、alliance（联盟）\ntransfuge	n.m.	叛逃者/变节者	un transfuge politique.	政治变节者。	根：拉丁语 transfuga（逃兵，trans- 越过 + fugere 逃）→ 叛逃者；同源：fugitif（逃亡的）、fuir（逃跑）\nallégeance	n.f.	效忠	prêter allégeance.	宣誓效忠。	根：古法语 lige（封臣，日耳曼语源）→ 效忠；同源：lige（封臣，古词）、alléger（减轻）\ncoalition	n.f.	联合	une coalition hétéroclite.	成分复杂的联盟。	根：拉丁语 coalitio（联合，co- 共同 + alescere 成长）→ 联盟；同源：coaliser（联合）、alliance（联盟）\nclivage	n.m.	分歧	dépasser les clivages.	超越党派分歧。	根：日耳曼语 klieben（分裂）→ 分歧；同源：cliver（分裂）、clivé（分裂的）\nconsensus	n.m.	共识	un consensus mou.	软弱的共识。	根：拉丁语 consensus（一致，con- 共同 + sentire 感觉）→ 共识；同源：consentir（同意）、sentiment（感情）\ndissension	n.f.	不和	des dissensions internes.	内部不和。	根：拉丁语 dissensio（分歧，dis- 分开 + sentire 感觉）→ 不和；同源：dissentiment（异议）、sentiment（感情）\npolémique	n.f.	争论/抨击	susciter une vive polémique.	引发激烈争论。	根：希腊语 polemikos（好战的，polemos 战争）→ 争论；同源：polémiquer（争论）、polémiste（辩论家）\ncontroverses	n.f.pl.	争议	un sujet sujet à controverses.	一个有争议的话题。	根：拉丁语 controversia（争议，contra- 相反 + vertere 转）→ 争议；同源：controverse（争议）、verser（倾倒）\ndébat	n.m.	辩论	un débat d'idées.	思想辩论。	根：古法语 debattre（争论，de- 分开 + battre 打）→ 辩论；同源：débattre（辩论）、battre（打）\nrhétorique	n.f.	修辞/花言巧语	une rhétorique agressive.	激进的修辞。	根：希腊语 rhētorikē（修辞术，rhētōr 演说家）→ 修辞；同源：rhéteur（修辞学家）、rhétoricien（修辞学家）\néloquence	n.f.	雄辩	faire preuve d'éloquence.	展现口才。	根：拉丁语 eloquentia（雄辩，e- 出 + loqui 说）→ 雄辩；同源：éloquent（雄辩的）、locution（短语）\ncharisme	n.m.	个人魅力	un leader sans charisme.	没有魅力的领导人。	根：希腊语 charisma（恩赐，charis 恩惠）→ 魅力；同源：charismatique（有魅力的）、charité（慈善）\nnotoriété	n.f.	知名度	acquérir une grande notoriété.	获得很高知名度。	根：拉丁语 notorius（众所周知的，notus 已知的）→ 知名度；同源：notoire（臭名昭著的）、connaître（认识）\ncrédibilité	n.f.	公信力	perdre toute crédibilité.	失去所有信誉。	根：拉丁语 credibilis（可信的，credere 相信）→ 可信度；同源：crédible（可信的）、croire（相信）\npopularité	n.f.	受欢迎程度	une cote de popularité.	民意支持率。	根：拉丁语 popularitas（民众喜爱，populus 人民）→ 人气；同源：populaire（流行的）、peuple（人民）\ndésaveu	n.m.	否认/拒绝承认	un cinglant désaveu.	严厉的否定。	根：拉丁语 dis-（否定）+ advocare（承认）→ 否认；同源：désavouer（否认）、avouer（承认）\néchec	n.m.	失败	un échec électoral.	选举失败。	根：波斯语 shah（国王，象棋术语）→ 失败；同源：échecs（国际象棋）、mat（将死）\nsuccès	n.m.	成功	un succès d'estime.	名誉上的成功。	根：拉丁语 successus（成功，sub- 下 + cedere 走）→ 成功；同源：succéder（继承）、succession（继承）\nvictoire	n.f.	胜利	une victoire écrasante.	压倒性的胜利。	根：拉丁语 victoria（胜利，vincere 征服）→ 胜利；同源：victorieux（胜利的）、vaincre（征服）\ndéfaite	n.f.	失败	concéder la défaite.	承认失败。	根：拉丁语 dis-（去除）+ facere（做）→ 失败；同源：défaire（打败）、faire（做）\ndémission	n.f.	辞职	présenter sa démission.	提交辞呈。	根：拉丁语 demissio（放弃，de- 离开 + mittere 送）→ 辞职；同源：démissionner（辞职）、mission（使命）\néviction	n.f.	罢免/排挤	l'éviction d'un ministre.	一名部长的被撤职。	根：拉丁语 evictio（驱逐，e- 出 + vincere 征服）→ 驱逐；同源：évincer（驱逐）、vaincre（征服）\nremaniement	n.m.	改组	un remaniement technique.	技术性改组。	根：拉丁语 re-（再）+ manus（手）→ 改组；同源：manier（操作）、main（手）\nsuccession	n.f.	继承	la succession est ouverte.	继任人选已公开（接班人竞争开启）。	根：拉丁语 successio（继承，sub- 下 + cedere 走）→ 继承；同源：succéder（继承）、céder（让步）\nalternance	n.f.	(政党)轮替	le principe de l'alternance.	轮流执政原则。	根：拉丁语 alternare（轮流，alter 另一个）→ 交替；同源：alterner（交替）、alternatif（交替的）\nstabilité	n.f.	稳定	la stabilité gouvernementale.	政府稳定性。	根：拉丁语 stabilitas（稳定，stare 站立）→ 稳定；同源：stable（稳定的）、établir（建立）\ncontinuité	n.f.	连续性	assurer la continuité de l'état.	确保国家的连续性。	根：拉丁语 continuitas（连续，con- 共同 + tenere 持）→ 连续性；同源：continu（连续的）、tenir（持有）\nrupture	n.f.	断裂/变革	une politique de rupture.	变革政策。	根：拉丁语 ruptura（破裂，rumpere 破）→ 决裂；同源：rompre（打破）、corruption（腐败）\nstagnation	n.f.	停滞	une stagnation des salaires.	工资停滞。	根：拉丁语 stagnatio（停滞，stagnare 停滞）→ 停滞；同源：stagner（停滞）、étang（池塘）\ndéclin	n.m.	衰落	le déclin industriel.	工业衰退。	根：拉丁语 declinare（倾斜，de- 下 + clinare 倾斜）→ 衰落；同源：décliner（衰落）、incliner（倾斜）\nrenouveau	n.m.	复兴	un renouveau démocratique.	民主复兴。	根：拉丁语 re-（再）+ novus（新的）→ 复兴；同源：renouveler（更新）、nouveau（新的）\némergence	n.f.	兴起/涌现	l'émergence de nouveaux enjeux.	新议题的出现。	根：拉丁语 emergere（浮现，e- 出 + mergere 浸）→ 兴起；同源：émerger（浮现）、immerger（浸入）\névolution	n.f.	演变	l'évolution des mœurs.	习俗的演变。	根：拉丁语 evolutio（展开，e- 出 + volvere 滚）→ 演变；同源：évoluer（演变）、révolution（革命）\nrévolution	n.f.	革命	une révolution pacifique.	一场和平革命	根：拉丁语 revolutio（旋转，re- 回 + volvere 滚）→ 革命；同源：révolter（反叛）、volute（螺旋）");
+	
+
+
+	document.getElementById("testarea").innerHTML = window.screen.width;
+</script>
+
+
+
+<deepl-input-controller><template shadowrootmode="open"><link rel="stylesheet" href="chrome-extension://cofdbpoegempjloogbagkncekinflcnj/build/content.css"><div dir="ltr"><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller></body></html>

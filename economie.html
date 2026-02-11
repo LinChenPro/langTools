@@ -1,0 +1,1071 @@
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<!-- saved from url=(0041)https://www.budingparis.com/tests/VT.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<script type="text/javascript">
+// levels constents
+var INIT_LEVEL = 50;
+var MAX_LEVEL = 100;
+
+// list size definition
+var MAX_CRT_SIZE = 10;
+var ERROR_SIZE = 3;
+
+// repeat time définitions
+var MAX_CORRECT_TM = 20;
+var MAX_REPEAT_ERROR = 3;
+var NEED_CORRECT_TM = 4;
+var NEED_RECORRECT_TM = 3;
+var ERROR_WAIT_LENGTH = 4;
+
+var STATUT_WATTING = 1;
+var STATUT_CRT = 2;
+var STATUT_ERROR = 3;
+var STATUT_FINISHED = 4;
+
+var SHOW_LIST = true;
+
+// list functions
+// return if arr contient findValue
+function contains(arr, findValue){
+	for(var i=0; i<arr.length; i++){
+		if(arr[i]==findValue){
+			return true;
+		}
+	}
+	return false;
+}
+function removeValue(list, value){
+	for(i in list){
+		if(list[i] == value){
+			list.splice(i, 1);
+		}
+	}	
+}
+
+
+// random 0 to n-1, ratio i / i+1 = d 
+function randomRatio(n, d){// alert(currentList.length + ", " + n + "," + d)
+	if(d==1){
+		return random(n);
+	}
+	var N = (Math.pow(d, n)-1);
+	var r = N + 1 - Math.random() * N;
+	return n - Math.ceil(Math.log(r) / Math.log(d));
+}
+
+// random 0 to n-1
+function random(n){
+	return Math.floor(Math.random()*n);
+}
+
+// lists
+var waitingList;
+var finishedList;
+var currentList;
+var errorList;
+function initEmptyLists(){
+	waitingList = new Array();
+	finishedList = new Array();
+	currentList = new Array();
+	errorList = [emptyWordId(), emptyWordId(), emptyWordId()];
+
+}
+
+function emptyWordId(){
+	return -(random(1000)+1000);
+}
+
+function isEmptyWordId(i){
+	return i<0;
+}
+
+function isValidWordId(i){
+	return i>=0 && i< words.length;
+}
+
+function initLists(){
+	initEmptyLists();
+
+	for(var i=0; i<words.length; i++){
+		toWaitting(i);
+	}
+
+	for(var i=0; i<MAX_CRT_SIZE; i++){
+		if(waitingList.length==0){
+			break;
+		}
+		r = random(waitingList.length);
+		toCurrent(waitingList.splice(r, 1)[0]);
+	}
+}
+
+// functions that set value i into a list
+function changeToList(i, list, statut, pos){	
+	// remove if already exist
+	removeValue(waitingList, i);
+	removeValue(currentList, i);
+	removeValue(errorList, i);
+	removeValue(finishedList, i);
+
+	if(pos==null || list.length<pos){
+		list.push(i);
+	}else{
+		list.splice(pos, 0, i);
+	}
+	if(isValidWordId(i) && (statut==STATUT_WATTING || words[i].statut != STATUT_FINISHED)){
+		words[i].statut = statut;
+	}
+}
+
+function toWaitting(i){
+	if(!isEmptyWordId(i) && words[i].statut != STATUT_WATTING){
+		words[i].totalCorrectCt = 0;
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, waitingList, STATUT_WATTING);
+}
+
+function toCurrent(i, pos){
+	if(isValidWordId(i) && words[i].statut != STATUT_CRT){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, currentList, STATUT_CRT, pos);
+}
+
+function toError(i){
+	if(isValidWordId(i) && words[i].statut != STATUT_ERROR){
+		words[i].repeatErrCt = 0;
+		words[i].correctCt = 0;
+	}
+	changeToList(i, errorList, STATUT_ERROR);
+	if( errorList.length > ERROR_SIZE){
+		for(i=errorList.length; i>=0; i--){
+			if(isEmptyWordId(errorList[i])){
+				errorList.splice(i, 1);
+				break;
+			}
+		}
+	}
+}
+
+function toFinished(i){
+	changeToList(i, finishedList, STATUT_FINISHED);
+}
+
+// affichage functions
+function affLists(){
+	showList(waitingList, "waiting_div");
+	showList(finishedList, "finished_div");
+	showList(currentList, "current_div");
+	showList(errorList, "error_div");
+	document.getElementById("aff").style.display = SHOW_LIST ? "block" : "none";
+}
+
+function showList(list, divId){
+	var div = document.getElementById(divId);
+	div.innerHTML = "";
+	for(var i=0; i<list.length; i++){
+		div.innerHTML += getWordAff(list[i]);
+	}
+}
+
+function getWordAff(i){
+	if(isValidWordId(i)){
+		var word = words[i];
+		colorCode = getColorCode(word.level)
+		var selectedword = (i==SELECTED_WORD_ID)?" crtword" : "";
+		var finishedword = (word.statut==STATUT_FINISHED)?" finishedword" : "";
+		return '<div class="affword'+ selectedword + finishedword + '" style="background-color:'+colorCode+'">'
+				+ getIndiceBlock("error", MAX_REPEAT_ERROR, word.repeatErrCt)
+				+ (
+					word.statut==STATUT_ERROR 
+					? getIndiceBlock("recorect", NEED_RECORRECT_TM, word.correctCt) 
+					: getIndiceBlock("correct", NEED_CORRECT_TM, word.correctCt) 
+				)
+				+ getIndiceBlock("total", MAX_CORRECT_TM, word.totalCorrectCt)
+				+ word.word +'</div>\n';
+	}else{
+		return '<div class="affword_null" style="background-color:white">&nbsp;</div>\n';
+	}
+}
+
+function getIndiceBlock(name, total, value){
+	var spanHtml = '\n<span class="indice_b b_' + name + '">';	
+	var name_point = name;
+	if( (name=="total" && total > 20) || (name!="total" && total > 5)){
+		name_point += "_small";
+	}
+
+	for(var i=0; i<total; i++){
+		if(i<value){
+        	spanHtml += '\n  <span class="indice_v '+name_point+'"></span>'
+		}else{
+			spanHtml += '\n  <span class="indice_t '+name_point+'"></span>'
+		}
+	}
+    spanHtml += '\n</span>\n';
+	return spanHtml;
+        		
+}
+
+function getColorCode(level){
+	var level = (level-1)
+	if(level<1){
+		level=1;
+	}
+	level = Math.floor(100/level)+155;
+
+	var a=level.toString(16);
+	return "#"+a+a+a;
+}
+
+var words=[];
+
+
+function hideButtons(divId){
+	document.getElementById(divId).style.display="none";
+}
+
+function showButtons(divId){
+	document.getElementById(divId).style.display= (divId=="btndiv_3" || divId=="btndiv_4") ? "inline-block" : "inline-block";
+}
+
+function showStartButtonsByCondition(){
+	if(words==null || words.length <=0 ){
+		hideButtons("btndiv_3");
+	}else{
+		showButtons("btndiv_3");
+	}
+
+}
+
+function getSeparator(){
+	var radios = document.getElementsByName("separator");
+	for(var i=0; i<radios.length; i++){
+		if(radios[i].checked){
+			return radios[i].value;
+		}
+	}
+	return ",";
+}
+
+function load(){
+	var inputs = document.getElementById("input_words").value;
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	words = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split(getSeparator());
+		if(params.length==2){
+			words[i]={'word':params[0],'mean':params[1],'level':INIT_LEVEL};
+		}else if(params.length==3 && params[2]!=''){
+			words[i]={'word':params[0],'mean':params[1],'level':params[2]};
+		}
+	}
+	
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function save(){
+	var saveValues = "";
+	for(var i=0; i<words.length; i++){
+		saveValues += words[i].word+getSeparator()+words[i].mean+getSeparator()+words[i].level+"\n";
+	}
+	
+	document.getElementById("input_words").value = saveValues;
+}
+
+
+
+function getQuestionField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "mean" : "word";
+}
+
+function getAnswerField(){
+	var direction = document.getElementById("direction_inverse");
+	return direction.checked? "word" : "mean";
+}
+
+function getNext(list, ratio){
+	var i = randomRatio(list.length-1, ratio);
+	// return list.splice(i, 1)[0]; // ch
+	return list[i]; 
+}
+
+var startTime;
+function start(){
+	initLists();
+	startTime = Date.now();
+	nextWord();
+}
+
+function finish(){
+	var t = Math.floor((Date.now()-startTime)/1000)
+	alert("完成 !\n用时" + Math.floor(t/60) +"m"+ (t%60) +"s");
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showButtons("btndiv_3");
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	initLists();
+	affLists();
+	save();
+}
+
+var SELECTED_WORD_ID;
+crtWordBeginTime=0;
+function nextWord(){
+	var i = getNext(errorList, 3);
+	if(isValidWordId(i)){
+		SELECTED_WORD_ID = i;
+	}else{
+		toError(i);
+		SELECTED_WORD_ID = getNext(currentList, 2);
+	}
+
+	crtWordBeginTime=new Date().getTime();
+	showQuestion();
+
+	showButtons("btndiv_1");
+	showButtons("btndiv_2");
+	hideButtons("btndiv_3");
+	showButtons("btndiv_4");
+	// hideButtons("btndiv_5");
+
+
+	affLists();
+}
+
+function showQuestion(){
+	var field = getQuestionField();
+	var question = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(question);
+	}
+
+	document.getElementById("question").innerHTML = field=="word"? ('<span class="bigger">' + question + '</span>') : question;
+	document.getElementById("answer").innerHTML="";	
+	var crtDetail = getCrtDetail();
+	if(crtDetail != null){
+		document.getElementById("detail").innerHTML = crtDetail;
+		showButtons("btndiv_5");
+	}else{
+		hideButtons("btndiv_5");
+	}
+	hideDetail();
+}
+
+function getCrtDetail(){
+	var crtWd = words[SELECTED_WORD_ID];
+	if(crtWd.example != null){
+		return '<span class="small">' + crtWd.example + "<br>" + crtWd.exampleTrans + (crtWd.src == "不适用单词" ? "" : ("<br>" + crtWd.src)) + '</span>';
+	}else{
+		return null;
+	}
+}
+
+function hideDetail(){
+	document.getElementById("detail").style.display="none";
+}
+
+function showDetail(){
+	document.getElementById("detail").style.display="block";
+}
+
+function swichDetail(){
+	if(document.getElementById("detail").style.display=="none"){
+		showDetail();
+	}else{
+		hideDetail();
+	}
+}
+
+
+function showAnswer(){
+	var field = getAnswerField();
+	var answer = words[SELECTED_WORD_ID][field];
+
+	if(field=="word"){
+		readWord(answer);
+	}
+	document.getElementById("answer").innerHTML = field=="word"? ('<span class="bigger">' + answer + '</span>') : answer;	
+}
+
+function readCurrentWord(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.word);
+	}
+}
+
+function readCurrentDetail(){
+	var crtWord = words[SELECTED_WORD_ID];
+	if(crtWord != null){
+		readWord(crtWord.example);
+	}
+}
+
+function onRight(){
+	updateLevel(SELECTED_WORD_ID, true);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	crtWord.totalCorrectCt++;
+	crtWord.correctCt++;
+	crtWord.repeatErrCt = 0;
+
+	if(crtWord.totalCorrectCt >= MAX_CORRECT_TM || (crtStatut==STATUT_CRT && crtWord.correctCt>=NEED_CORRECT_TM)){
+		toFinished(SELECTED_WORD_ID);
+	}else if(crtStatut==STATUT_ERROR && crtWord.correctCt>=NEED_RECORRECT_TM){
+		toCurrent(SELECTED_WORD_ID)
+	}else{
+		if(crtStatut == STATUT_ERROR){
+			toError(SELECTED_WORD_ID);
+		}else{
+			toCurrent(SELECTED_WORD_ID);
+		}
+	}
+
+	if(errorList.length < ERROR_SIZE){
+		errorList.push(emptyWordId());
+	}
+
+	while(currentList.length + validWordIdCount(errorList) < MAX_CRT_SIZE && words.length >= MAX_CRT_SIZE){
+		if(waitingList.length>0){
+			var r = random(waitingList.length);
+			toCurrent(waitingList.splice(r, 1)[0]);
+		}else if(finishedList.length>0){
+			var r = random(finishedList.length);
+			toCurrent(finishedList.splice(r, 1)[0]);
+		}
+	}
+
+	if(isAllFinished()){
+		finish();
+	}else{
+		nextWord();
+	}
+
+}
+
+function onWrong(){
+	updateLevel(SELECTED_WORD_ID, false);
+
+	var crtWord = words[SELECTED_WORD_ID];
+	var crtStatut = crtWord.statut;
+	
+	crtWord.repeatErrCt++;
+	if(crtStatut==STATUT_ERROR || crtWord.repeatErrCt>=MAX_REPEAT_ERROR){
+		toError(SELECTED_WORD_ID);
+	}else{
+		toCurrent(SELECTED_WORD_ID, ERROR_WAIT_LENGTH);
+	}
+
+
+
+	nextWord();
+}
+
+function validWordIdCount(list){
+	var cnt = 0;
+	for(i in list){
+		if(isValidWordId(list[i])){
+			cnt++;
+		}
+	}
+	return cnt;
+}
+
+function isAllFinished(){
+	var cnt = 0;
+	for(i in words){
+		if(words[i].statut == STATUT_FINISHED){
+			cnt++;
+		}
+	}
+	return cnt==words.length;
+}
+
+function updateLevel(idx, res){
+	if(!res){
+		words[idx].level=MAX_LEVEL;
+	}else{
+		var tm = new Date().getTime()-crtWordBeginTime
+		words[idx].level=Math.min(Math.floor((words[idx].level+tm/1000)/2), MAX_LEVEL);
+		
+	}
+}
+
+function initOptions(){
+	initOptionSelector("OPTION_MAX_CRT_SIZE", MAX_CRT_SIZE, 6, 20);
+	initOptionSelector("OPTION_ERROR_SIZE", ERROR_SIZE, 2, 6);
+	initOptionSelector("OPTION_MAX_CORRECT_TM", MAX_CORRECT_TM, 5, 40);
+	initOptionSelector("OPTION_NEED_CORRECT_TM", NEED_CORRECT_TM, 1, 10);
+	initOptionSelector("OPTION_MAX_REPEAT_ERROR", MAX_REPEAT_ERROR, 1, 5);
+	initOptionSelector("OPTION_NEED_RECORRECT_TM", NEED_RECORRECT_TM, 1, 10);
+}
+
+function initOptionSelector(elmId, param, minV, maxV){
+	var selector = document.getElementById(elmId);
+	for(var i=minV; i<=maxV; i++){
+		selector.add(new Option(i,i, false, i==param));
+	}
+}
+
+
+function changeOption(){
+	MAX_CRT_SIZE = document.getElementById("OPTION_MAX_CRT_SIZE").value;
+	ERROR_SIZE = document.getElementById("OPTION_ERROR_SIZE").value;
+	MAX_CORRECT_TM = document.getElementById("OPTION_MAX_CORRECT_TM").value;
+	NEED_CORRECT_TM = document.getElementById("OPTION_NEED_CORRECT_TM").value;
+	MAX_REPEAT_ERROR = document.getElementById("OPTION_MAX_REPEAT_ERROR").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	NEED_RECORRECT_TM = document.getElementById("OPTION_NEED_RECORRECT_TM").value;
+	SHOW_LIST = document.getElementById("OPTION_SHOW_LIST").checked;
+	affLists();	
+}
+
+// keyboard
+function handleShortcut(event) { 
+    if (event.key === "ArrowLeft") { 
+        onRight();
+        event.preventDefault(); 
+        // Votre action à effectuer lorsque la touche est enfoncée 
+    }else if(event.key === "ArrowRight"){
+        onWrong();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowUp"){
+        readCurrentWord();
+        event.preventDefault(); 
+    }else if(event.key === "ArrowDown"){
+        showAnswer();
+        event.preventDefault(); 
+    }else if(event.key === "l"){
+        swichDetail();
+        event.preventDefault(); 
+    }else if(event.key === "o"){
+        readCurrentDetail();
+        event.preventDefault(); 
+    }
+} 
+document.addEventListener("keydown", handleShortcut);
+
+
+
+// voice reader
+
+var reader_init_count = 0;
+var reader_voices;
+function waitInit(){
+	var success = false;
+	try {
+		if(window.speechSynthesis.getVoices().length>0){
+			reader_voices = window.speechSynthesis.getVoices();
+
+			initSelector("fr-FR");
+			// initSelector("zh-CN");
+			// initSelector("zh-TW");
+			success = true;
+		}
+	} catch (error) {console.error(error);}
+
+	if(success){
+		return;
+	}else if(!success && reader_init_count++<5){
+		setTimeout(waitInit,100);
+	}
+}
+
+
+function initSelector(lang){
+	var selector = document.getElementById("lang_"+lang);
+	for(i=0; i<reader_voices.length; i++){
+		if(reader_voices[i].lang==lang){
+			var option_i = new Option(reader_voices[i].name,i, false, reader_voices[i].name.includes("Google"));
+			selector.add(option_i);
+		}
+	}
+}
+
+
+function getVoice(v){
+	return reader_voices[v];
+}
+
+function speak(txt, voice){
+	try{
+		var speech = new SpeechSynthesisUtterance();
+		speech.voice = voice;
+		speech.text = txt;
+		window.speechSynthesis.speak(speech);
+	}catch (error) {}
+}
+
+function read(id, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(document.getElementById(id).value, getVoice(lang));
+}
+
+function readText(txt, langCode){
+	var lang = document.getElementById("lang_"+langCode).value;
+	speak(txt, getVoice(lang));
+}
+
+
+function readWord(wd){
+	if(needRead() && reader_voices != null){
+		readText(wd, "fr-FR")
+	}
+
+}
+
+function needRead(){
+	return document.getElementById("read_option").checked;
+}
+
+function changeReadOption(){
+	document.getElementById("readCrtWdBt").disabled = !document.getElementById("read_option").checked;
+}
+
+
+var lessonsList = [];
+function loadTxt(inputs){
+	inputs = inputs.trim();
+	var values=inputs.split("\n");
+
+	var lesson = new Array();
+
+	for(var i=0; i<values.length; i++){
+		if(values[i] == null || values[i].trim().length==0){
+			break;
+		}
+		var params = values[i].split("\t");
+		if(params.length==2){
+			lesson.push({'word':params[0],'mean':params[1],'level':INIT_LEVEL});
+		}else if(params.length==3 && params[2]!=''){
+			lesson.push({'word':params[0],'mean':params[1],'level':params[2]});
+		}else if(params.length==5){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4]})
+		}else if(params.length==6){
+			lesson.push({'word':params[0],'mean':params[1] + " " + params[2], 'level':INIT_LEVEL,'example':params[3],'exampleTrans':params[4],'src':params[5]})
+		}
+
+		if(lesson.length==42){
+			lessonsList.push(lesson);
+			lesson = new Array();
+		}
+	}
+	if(lesson.length != 0){
+		lessonsList.push(lesson);
+	}
+
+	var selector = document.getElementById("lessons");
+	for(var i=0; i<lessonsList.length; i++){
+		var option = document.createElement("option");
+		option.text = i+1;
+		selector.add(option);
+	}
+}
+
+function loadLesson(){
+	var selector = document.getElementById("lessons");
+	if(selector.value != null){
+		words = lessonsList[selector.value-1];
+		save();
+	}
+
+	initLists();
+	affLists();
+	showStartButtonsByCondition();
+}
+
+function nw(w, m){
+	return {'word':w,'mean':m,'level':INIT_LEVEL};
+}
+
+
+setTimeout(waitInit,100);
+
+</script>
+
+<style type="text/css">
+@media only screen and (max-width: 600px) {
+*{
+    font-family: sans-serif;
+	font-size: 30px;
+}
+
+.option_title {
+    width: 50% !important;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+#aff{
+	position: initial !important;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+
+#exe{
+	height: 900px !important;
+	position: relative;
+	width: 570px;
+}
+
+#question, #answer{
+	font-size: 40px !important;	
+	padding-top: 10px;
+	height: 200px !important;	
+}
+
+#question{
+	text-align: left;
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 7px !important;
+    padding: 5px;
+    margin: 50px 20px 0 20px !important;
+    width: 85%	 !important;
+}
+
+#detail, #detail *{
+    font-size: 15px !important;
+}
+
+.bigger{
+	font-size: 50px !important;	
+	font-weight: bold;
+}	
+
+
+#btndiv_1 button, #btndiv_2 button, #btndiv_5 button{
+	height: 100px !important;
+	width: 135px;
+	font-size: 35px !important;	
+	bottom: 10px;
+}
+
+#btndiv_1 , #btndiv_2, #btndiv_5{
+	position: absolute !important;
+	bottom: 10px;
+	width: 280px;
+}
+
+#btndiv_1 {
+	left:10px;
+	bottom:120px;
+
+}
+
+#btndiv_2 {
+	left:10px;
+}
+
+#btndiv_5 {
+	left:10px;
+	bottom:240px;
+}
+
+#input_words{
+	font-size: 25px !important;
+}
+
+}
+
+
+body{
+    font-family: sans-serif;
+}
+
+.buttons button{
+	padding:5px; 
+	margin:5px;
+	font-size: 8px;
+}
+#word{
+	font-size: 20px;
+}
+#input_words{
+	width:550px;
+	height:200px;
+	font-family: sans-serif;
+}
+#aff{
+	position: absolute;
+    right: 20px;
+    top: 0px;
+    border: 1px solid;
+    padding: 5px;
+    margin-top: 20px;
+}
+.list_aff{
+    min-width: 150px;
+    padding: 5px;
+    display: inline-block;	
+	vertical-align: top
+}
+
+.affword, .affword_null{
+	font-size: 12px;
+	border: 1px solid green;
+	margin: 2px 0px;
+	padding: 1px;
+    display:block;
+}
+
+.crtword{
+	border: 1px solid red !important;
+	font-weight:bold;
+}
+
+.finishedword{
+	color:#712a2a;
+	font-weight:bold;
+}
+
+
+.indice_b{
+	display: inline-block;
+    background-color: #bbbb88;
+    width: 6px;
+    float: inline-end;
+    padding: 0px 1px 1px 0px;
+    margin-left : 3px;
+}
+
+.indice_v, .indice_t{
+	display: inline-block;
+    margin: 1px 1px 0px 1px;
+    width: 5px;
+    height: 2px;
+    vertical-align: top;
+    float: inline-start;
+}
+
+.indice_t{
+	opacity:0.2;
+}
+
+.error, .error_small{
+	background-color:red;
+}
+
+.correct, .correct_small{
+	background-color:green;
+}
+
+.recorect, .recorect_small{
+	background-color:blue;
+}
+
+
+.error_small, .correct_small, .recorect_small{
+    height: 1px;
+    margin-top: 0.5px;
+}
+
+.b_total{
+	width:12px;
+}
+
+.total{
+    background-color: green;
+    width:2px;
+    margin: 1px 0px 0px 1px;
+}
+
+.total_small{
+    background-color: green;
+    width:1px;
+    margin: 0.2px 0px 0px 1px;
+}
+
+#question, #answer{
+	font-size: 25px;	
+	height: 60px;
+	padding-left:5px;
+	height: 60px;
+	padding-left:5px;
+}
+
+#question{
+	color: #bb4110;	
+}
+
+#detail{
+	position: absolute;
+    background-color: white;
+    border: 1px solid;
+    font-size: 10px;
+    padding: 5px;
+    margin: 20px 0 0 20px;
+    width: 550px;
+}
+
+#answer{
+	color: #174917;	
+}
+
+
+.block{
+	margin: 20px 5px;
+	padding: 5px;
+	width: 600px;
+	border: 1px solid black;
+}
+
+.div_sep{
+	border-bottom: 1px solid black;
+	margin: 10px;
+}
+
+.option_title{
+	width: 150px;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+
+</style>
+<title>单词训练</title>
+</head>
+<body onkeypress="onKey(event)">
+
+<div>
+
+	<div class="block" id="exe">
+		<div id="detail"></div>
+		<div id="question"></div>
+		<div id="answer"></div>
+
+
+		<span id="btndiv_1" style="display: none;">
+			<button onclick="onRight();">正确←</button>
+			<button onclick="onWrong();">错误→</button>
+		</span>
+		&nbsp;&nbsp;
+		<span id="btndiv_2" style="display: none;">
+			<button onclick="showAnswer();">答案↓</button>
+			<button onclick="readCurrentWord();" id="readCrtWdBt">读音↑</button>
+		</span>
+		<span id="btndiv_5" style="display: none;">		
+			<button onclick="swichDetail();" id="detailCrtWdBt">详情L</button>
+			<button onclick="readCurrentDetail();" id="readDetailCrtWdBt">读例O</button>
+		</span>
+		
+	</div>
+	
+
+	<div class="block">
+		方向 : 
+		<input type="radio" name="direction" value="0" checked="">法 - 汉
+		&nbsp;&nbsp;
+		<input type="radio" name="direction" value="1" id="direction_inverse">汉 - 法
+		&nbsp;&nbsp;&nbsp;
+		<span id="btndiv_3" style="display: none;">
+			<button id="b_32" onclick="start();">开始</button>
+		</span>
+		<span id="btndiv_4" style="display: none;">
+			<button id="b_32" onclick="finish();">结束</button>
+		</span>
+	</div>
+
+	<div class="block">
+		<div id="lists"></div>
+		<textarea id="input_words"></textarea>
+		<br>
+		<button onclick="load();">导入单词</button>
+		<button onclick="save();">导出单词</button>
+		分隔符 : <input type="radio" name="separator" value=";" checked=""> <b>;</b>
+		&nbsp; &nbsp;
+		<input type="radio" name="separator" value=","> <b>,</b>
+	</div>
+	<div class="block">
+		<select id="lessons"></select> <button onclick="loadLesson();">导入课程</button>
+	</div>
+	
+	<div class="block">
+		<div>
+			<button onclick="waitInit()">初始化语音引擎</button>&nbsp; &nbsp;
+			法语引擎 : <select id="lang_fr-FR"><option value="0">Microsoft Hortense - French (France)</option><option value="1">Microsoft Julie - French (France)</option><option value="2">Microsoft Paul - French (France)</option><option value="9">Google français</option></select>
+		</div>
+
+		<div>
+			开启单词朗读功能<input type="checkbox" id="read_option" checked="" onchange="changeReadOption()">&nbsp; &nbsp;
+			测试文字<input type="text" id="word_fr" value="banana"><button onclick="read(&#39;word_fr&#39;, &#39;fr-FR&#39;)"> 试读 </button>
+		</div>
+	</div>
+	
+
+	<div class="block">
+		<div class="div_sep">选项 : </div>
+		<div><span class="option_title">当前列表长度 : </span><select id="OPTION_MAX_CRT_SIZE" onchange="changeOption()"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select></div>
+		<div><span class="option_title">错误列表长度 : </span><select id="OPTION_ERROR_SIZE" onchange="changeOption()"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大总正确次数 : </span><select id="OPTION_MAX_CORRECT_TM" onchange="changeOption()"><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option></select></div>
+		<div><span class="option_title">所需正确次数 : </span><select id="OPTION_NEED_CORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">最大重复错误次数 : </span><select id="OPTION_MAX_REPEAT_ERROR" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+		<div><span class="option_title">所需更正次数 : </span><select id="OPTION_NEED_RECORRECT_TM" onchange="changeOption()"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+		<div class="div_sep"></div>
+		<div><span class="option_title">显示列表信息 : </span><input type="checkbox" id="OPTION_SHOW_LIST" checked="" onchange="changeOption()"></div>
+	</div>
+
+
+	<div id="aff" style="display: block;">
+		<div id="waiting_div" class="list_aff"></div>
+		<div id="current_div" class="list_aff"></div>
+		<div id="error_div" class="list_aff"><div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+<div class="affword_null" style="background-color:white">&nbsp;</div>
+</div>
+		<div id="finished_div" class="list_aff"></div>
+
+	</div>
+
+	<div id="testarea">1920</div>
+
+
+
+</div>
+<script type="text/javascript">
+	initLists();
+	affLists();	
+	hideButtons("btndiv_1");
+	hideButtons("btndiv_2");
+	showStartButtonsByCondition();
+	hideButtons("btndiv_4");
+	hideButtons("btndiv_5");
+	hideDetail();
+
+	initOptions();
+	loadTxt("pouvoir d'achat	n.m.	购买力	l'inflation pèse lourdement sur le pouvoir d'achat.	通货膨胀严重打击了购买力。	根： posse (能够) + emere (买)。同源： Puissance (权力/威力), Achat (购买)。\ninflation	n.f.	通货膨胀	une hausse de l'inflation réduit la consommation.	通胀上升会减少消费。	根： flare (吹/膨胀)。同源： Gonfler (充气/膨胀), Déflation (通货紧缩)。\nfiscalité	n.f.	税制	la fiscalité française est complexe pour les entreprises.	法国的税制对企业而言非常复杂。	根： fiscus (钱篮/国库)。同源： Fisc (税务当局), Confisquer (没收/充公)。\nprélèvement	n.m.	直接扣款/征收	le prélèvement à la source a été mis en place en 2019.	代扣代缴制（个人所得税）已于2019年实施。	根： prae- (预先) + levare (举起/减轻)。同源： Lever (举起), Élève (学生/受教导者)。\nexonération	n.f.	免除/减免(税收)	une exonération de taxe foncière pour les jeunes.	针对年轻人的房产税减免。	根： ex- (出) + onus (负担/重担)。同源： Onéreux (昂贵的/负担沉重的)。\ndéficit	n.m.	赤字	le gouvernement cherche à combler le déficit.	政府试图弥补赤字。	根： deficere (缺少/不足)。同源： Défaut (缺陷/违约), Déficient (有缺陷的)。\nrécession	n.f.	经济衰退	le pays entre officiellement en période de récession.	该国正式进入经济衰退期。	根： recedere (后退/撤回)。同源： Reculer (后退), Céder (让步/放弃)。\naustérité	n.f.	紧缩(政策)	une politique d'austérité budgétaire.	财政紧缩政策。	根： austeros (严厉/苦涩)。同源： Austère (简朴的/严厉的)。\ndividende	n.m.	股息/红利	les actionnaires ont perçu des dividendes records.	股东们获得了创纪录的股息。	根： dividere (分开/分配)。同源： Division (部门/除法), Devise (货币)。\népargne	n.f.	储蓄	le livret a est le placement d'épargne préféré des français.	A级储蓄账户（Livret A）是法国人最青睐的储蓄方式。	根： sparan (节省/保留)。同源： Épargner (节省/宽恕)。\nfonds de roulement	n.m.	营运资金	l'entreprise manque de fonds de roulement.	公司缺乏营运资金。	根： fundus (底/基础) + rotulare (滚动)。同源： Fondation (基础), Rouler (滚动)。\nliquidation	n.f.	清算/结业大甩卖	la liquidation judiciaire de la société.	公司进入司法清算程序。	根： liquidus (液态/清晰)。同源： Liquide (液体/现金), Liquider (清偿/除掉)。\nsous-traitance	n.f.	分包/外包	faire appel à la sous-traitance pour réduire les coûts.	通过外包来降低成本。	根： sub- (在下) + trahere (拉/拖)。同源： Trait (特征/线条), Extraire (提取)。\npouvoir d'achat	n.m.	购买力	la protection du pouvoir d'achat est une priorité.	保护购买力是当务之急。	根： posse (能够) + emere (买)。同源： Possible (可能的), Emplette (购买之物)。\nménage	n.m.	家庭/住户 (经济单位)	la consommation des ménages ralentit.	家庭消费增长放缓。	根： mansio (居住处)。同源： Maison (房屋), Manoir (庄园)。\nconjoncture	n.f.	(经济)走势/时机	la conjoncture actuelle est peu favorable.	当前的经济形势不太乐观。	根： conjungere (连接/结合)。同源： Conjoint (配偶), Jonction (连接点)。\natone	adj.	停滞的/无生气的	une croissance économique atone.	经济增长乏力。	根： a- (无) + tonos (张力/声调)。同源： Tonique (强身剂), Tonus (活力)。\ncompétitivité	n.f.	竞争力	améliorer la compétitivité des usines françaises.	提高法国工厂的竞争力。	根： cum (共同) + petere (追求/寻找)。同源： Compétition (竞争), Pétition (请愿书)。\ndélocalisation	n.f.	(企业)外迁	la délocalisation a détruit des emplois locaux.	产业外移导致了当地就业机会的流失。	根： de- (离开) + locus (地方)。同源： Lieu (地点), Local (当地的)。\nréindustrialisation	n.f.	重新工业化	un plan massif pour la réindustrialisation.	大规模的再工业化计划。	根： industria (勤奋/活动)。同源： Industrie (工业), Industrieux (勤劳的)。\nsubvention	n.f.	补贴/资助	l'état accorde une subvention aux voitures électriques.	国家为购买电动汽车提供补贴。	根： sub- (在下) + venire (来)。同源： Venir (来), Intervention (干预)。\nprêt	n.m.	贷款	un prêt immobilier à taux fixe.	固定利率住房贷款。	根： praestare (提供/借出)。同源： Prêter (借出), Prestation (服务/给付)。\néchéance	n.f.	到期日/截止日期	le paiement arrive à échéance demain.	付款将于明天到期。	根： ex- + cadere (落下/发生)。同源： Cadence (节奏), Déchéance (衰败/权利丧失)。\nsurendettement	n.m.	过度负债	aider les familles en situation de surendettement.	帮助陷入过度负债状况的家庭。	根： super- (过度) + debere (欠债/应当)。同源： Devoir (义务), Dette (债务)。\nsolvabilité	n.f.	偿付能力	la banque vérifie la solvabilité du client.	银行核查客户的偿付能力。	根： solvere (松开/支付)。同源： Solution (解决办法), Dissoudre (溶解)。\nagio	n.m.	(由于透支产生的)手续费/利息	la banque a prélevé des agios sur mon compte.	银行从我的账户中扣除了透支利息。	根： agio (差价/便利)。同源： Aise (舒适/自在)。\ndécouvert	n.m.	透支	être à découvert à la fin du mois.	在月底透支。	根： de- (相反) + cooperire (覆盖)。同源： Couvrir (覆盖), Ouvert (开启的)。\ncotisation	n.f.	分摊款/缴费	les cotisations patronales sont élevées.	雇主缴纳的社会分摊金很高。	根： quota (份额/多少)。同源： Quote-part (分担额), Quotient (商数)。\nrendement	n.m.	收益率/效率	le rendement de cet investissement est faible.	这项投资的回报率很低。	根： reddere (退还/给予)。同源： Rendre (归还), Rente (收益/年金)。\nplus-value	n.f.	增值	réaliser une plus-value immobilière.	实现房地产增值。	根： plus (更多) + valere (强壮/价值)。同源： Valeur (价值), Valider (使有效)。\nmonnaie	n.f.	货币/零钱	la stabilité de la monnaie unique.	单一货币（欧元）的稳定性。	根： Moneta (警示女神/造币厂)。同源： Monétaire (货币的)。\ndévaluation	n.f.	贬值	la dévaluation d'une devise.	货币贬值。	根： de- (向下) + valere (价值)。同源： Évaluer (评估)。\nmarché boursier	n.m.	股票市场	la chute du marché boursier.	股市崩盘。	根： mercatos (交易) + bursa (皮包)。同源： Bourse (交易所/钱包)。\nactionnaire	n.m.	股东	l'assemblée générale des actionnaires.	股东大会。	根： agere (驱动/做)。同源： Action (股份/行动), Transaction (交易)。\nactif	n.m.	资产	les actifs financiers de la banque.	银行的金融资产。	根： agere (驱动/做)。同源： Activité (活动), Agence (代理处)。\npassif	n.m.	负债	le passif de l'entreprise dépasse son actif.	企业的负债超过了其资产。	根： pati (经受/遭受)。同源： Passion (激情/受难), Patient (病人)。\ninsolvabilité	n.f.	无偿还能力	déclarer l'insolvabilité du débiteur.	宣布债务人无力偿债。	根： in- (不) + solvere (支付)。同源： Solvable (有偿还能力的)。\nfraude	n.f.	欺诈	lutter contre la fraude fiscale.	打击偷税漏税。	根： fraus (欺骗)。同源： Frauduleux (欺诈性的)。\nblanchiment	n.m.	洗钱	une affaire de blanchiment d'argent.	一起洗钱案。	根： blank (白色)。同源： Blanc (白色), Blanchir (漂白/洗钱)。\nspéculation	n.f.	投机	la spéculation immobilière fait monter les prix.	房地产投机推高了价格。	根： speculari (观察)。同源： Spectacle (演出), Inspecter (检查)。\nbulle	n.f.	泡沫	l'explosion de la bulle internet.	互联网泡沫的破裂。	根： bulla (气泡/印章)。同源： Bouillir (沸腾), Bulletin (票据/简报)。\nkrach	n.m.	股市崩盘	le krach de 1929.	1929年大危机。	根： 德语 (碰撞声)。同源： Craquer (发出爆裂声/崩溃)。\ncroissance	n.f.	增长	une prévision de croissance positive.	正增长预测。	根： crescere (增长/产生)。同源： Croître (生长), Recrue (新兵)。\npib (produit intérieur brut)	n.m.	国内生产总值	la dette publique dépasse le pib.	公共债务超过了国内生产总值（GDP）。	不适用单词\nfmi (fonds monétaire international)	n.m.	国际货币基金组织	le rapport annuel du fmi.	国际货币基金组织（IMF）年度报告。	不适用单词\nomc (organisation mondiale du commerce)	n.f.	世界贸易组织	les règles de l'omc.	世界贸易组织（WTO）规则。	不适用单词\ndroit de douane	n.m.	关税	l'augmentation des droits de douane.	关税上涨。	根： directum (直) + diwan (办公桌)。同源： Douanier (海关人员)。\nprotectionnisme	n.m.	保护主义	un retour au protectionnisme.	回归保护主义。	根： protegere (前面覆盖)。同源： Protéger (保护), Toit (屋顶)。\nlibre-échange	n.m.	自由贸易	un accord de libre-échange.	自由贸易协定。	根： liber (自由) + excambiare (交换)。同源： Liberté (自由), Change (交换)。\ndérégulation	n.f.	取消管制	la dérégulation du marché de l'énergie.	能源市场的放松管制。	根： de- (除去) + regula (规则)。同源： Règle (规则), Régulier (规律的)。\nprivatisation	n.f.	私有化	la privatisation de la française des jeux.	法国博彩公司（FDJ）的私有化。	根： privatus (个人的)。同源： Privé (私人的), Priver (剥夺)。\nnationalisation	n.f.	国有化	une nationalisation temporaire.	临时国有化。	根： natio (诞生/民族)。同源： Nation (国家), Naître (出生)。\nsecteur tertiaire	n.m.	第三产业 (服务业)	la France est dominée par le secteur tertiaire.	法国由第三产业主导。	根： sectus (切开) + tertius (第三)。同源： Section (部门), Tiers (第三方)。\npme (petite et moyenne entreprise)	n.f.	中小型企业	soutenir le tissu des pme.	支持中小企业体系。	不适用单词\nmultinationale	n.f.	跨国公司	les profits des multnationales.	跨国公司的利润。	根： multus (多) + natio (民族)。同源： Multiple (多倍的)。\nsiège social	n.m.	总部	le siège social se trouve à Lyon.	总部位于里昂。	根： sedes (座位) + socius (伙伴)。同源： Assis (坐着的), Société (公司)。\nfiliale	n.f.	子公司	la filiale allemande du groupe.	该集团的德国子公司。	根： filius (儿子)。同源： Fille (女儿), Affilier (使隶属)。\nfusion-acquisition	n.f.	并购	une opération de fusion-acquisition.	并购交易（M&A）。	根： fundere (熔化) + acquirere (获得)。同源： Fondre (融化), Acquis (习得的)。\nconcurrence	n.f.	竞争	la concurrence déloyale.	不正当竞争。	根： con- + currere (跑)。同源： Courir (跑), Cours (汇率/课)。\nmonopole	n.m.	垄断	briser le monopole d'état.	打破国家垄断。	根： monos (唯一) + polein (卖)。同源： Monologue (独白)。\noligopole	n.m.	寡头垄断	un marché en situation d'oligopole.	处于寡头垄断状态的市场。	根： oligos (少数) + polein (卖)。同源： Oligarchie (寡头政治)。\ncartel	n.m.	卡特尔 (价格垄断组织)	démanteler un cartel du pétrole.	拆散石油卡特尔。	根： cartello (纸条/契约)。同源： Carte (卡片), Carton (纸箱)。\npénurie	n.f.	短缺	la pénurie de matières premières.	原材料短缺。	根： penuria (匮乏)。同源： Pénible (辛苦的)。\noffre et demande	n.f.	供需	la loi de l'offre et de la demande.	供需法则。	根： offerre (呈现) + demandare (委托)。同源： Offrir (提供), Mandat (任务)。\nconsommation	n.f.	消费	stimuler la consommation.	刺激消费。	根： consumere (吃完/耗尽)。同源： Consumer (烧毁/消耗)。\népargne	n.f.	储蓄	un taux d'épargne élevé.	高储蓄率。	根： sparan (节省)。同源： Épargner (积累/省去)。\ninvestissement	n.m.	投资	un investissement productif.	生产性投资。	根： investire (穿衣)。同源： Vêtement (服装), Revêtir (披上/具有)。\ncapital	n.m.	资本	l'augmentation de capital.	增加资本（增资）。	根： capitalis (头的/首要的)。同源： Chef (首领), Capitale (首都)。\ntravail	n.m.	劳动/工作	le marché du travail.	劳动力市场。	根： trepalium (刑具)。同源： Travailler (工作), Entraver (束缚)。\nchômage	n.m.	失业	le chômage structurel.	结构性失业。	根： kauma (暑热休工)。同源： Chômer (停工), Calme (平静)。\nemploi	n.m.	就业	créer des emplois.	创造就业岗位。	根： implicare (卷入/折叠)。同源： Employer (雇用), Impliquer (牵连)。\nsalariat	n.m.	工薪阶层/雇佣劳动	la fin du salariat ?	受薪制的终结？	根： salarium (盐钱)。同源： Salaire (薪水), Salé (咸的)。\nauto-entrepreneur	n.m.	个体工商户	le statut d'auto-entrepreneur.	个体企业家（Auto-entrepreneur）身份。	根： autos (自) + entreprendre (承办)。同源： Automate (自动机), Entreprise (企业)。\nprécarité	n.f.	不稳定/贫困	la précarité énergétique.	能源贫困。	根： precarius (祈求得来的)。同源： Prier (祈祷), Précaire (不稳定的)。\nseuil de pauvreté	n.m.	贫困线	vivre sous le seuil de pauvreté.	生活在贫困线以下。	根： solum (地面) + pauper (穷)。同源： Sol (土壤), Pauvreté (贫困)。\ninégalités	n.f.pl.	不平等	réduire les inégalités de revenus.	缩小收入差距。	根： in- (不) + aequalis (平等的)。同源： Égal (平等的), Équitable (公正的)。\nredistribution	n.f.	再分配	la redistribution des richesses.	财富再分配。	根： re- + distribuere (分配)。同源： Distribuer (分发), Tribut (贡物)。\nsolidarité	n.f.	团结/共济	la solidarité nationale.	国家团结（全民共济）。	根： solidus (坚固/完整)。同源： Solide (坚固的), Consolider (巩固)。\nprotection sociale	n.f.	社会保障	le modèle de protection sociale.	社会保障模式。	根： protegere + socius (伙伴)。同源： Social (社会的)。\nassurance maladie	n.f.	医疗保险	le budget de l'assurance maladie.	医疗保险预算。	根： securus (无忧) + male (病/坏)。同源： Sûr (确信的), Malheureux (不幸的)。\nretraite	n.f.	退休/退休金	le système de retraite par répartition.	现收现付制养老体系。	根： retrahere (拉回/撤退)。同源： Retirer (取回), Trait (笔画)。\nallocation	n.f.	津贴/补助	les allocations familiales.	家庭津贴。	根： ad- + locare (安置)。同源： Louer (租借), Local (场所)。\nrsa (revenu de solidarité active)	n.m.	积极团结收入 (法国低保)	percevoir le rsa.	领取积极互助收入（RSA）。	不适用单词\nimpôt	n.m.	税	l'impôt sur le revenu.	个人所得税。	根： imponere (强加/课税)。同源： Imposer (强制), Imposteur (骗子)。\ntva (taxe sur la valeur ajoutée)	n.f.	增值税	une réduction de la tva.	增值税（TVA）减免。	不适用单词\ntaxe	n.f.	税/费	la taxe foncière.	房产税。	根： taxare (触碰/评定)。同源： Taxer (征税), Tact (触觉/分寸)。\nredevance	n.f.	费/使用费	une redevance audiovisuelle.	视听收视费。	根： red-debere (应再还之物)。同源： Devoir (职责), Dette (欠款)。\nfiscalité	n.f.	财政/税制	la fiscalité écologique.	生态税制。	根： fiscus (钱篮)。同源： Fiscal (税务的), Fiscaliser (征税)。\nparadis fiscal	n.m.	避税天堂	les listes noires des paradis fiscaux.	避税天堂黑名单。	根： pairidaeza (围墙花园) + fiscus。同源： Paradis (天堂)。\noptimisation fiscale	n.f.	合法避税	l'optimisation fiscale des géants du web.	互联网巨头的税务筹划。	根： optimus (最好的)。同源： Optimisme (乐观), Optimum (最佳状态)。\névasion fiscale	n.f.	逃税	lutter contre l'évasion fiscale.	打击逃税（资本外逃）。	根： evadere (逃脱)。同源： Évader (逃跑), Évasif (躲闪的)。\naudit	n.m.	审计	un audit financier.	财务审计。	根： audire (听)。同源： Audition (听力/面试), Auditeur (审计师)。\ncomptabilité	n.f.	会计	tenir la comptabilité.	进行会计核算。	根： computare (结算)。同源： Compter (数), Compte (账户)。\nexercice	n.m.	财年	le bilan de l'exercice précédent.	上一财年的资产负债表。	根： exercitium (训练)。同源： Exercer (练习), Exerçant (从业者)。\nchiffre d'affaires (ca)	n.m.	营业额	un ca en forte progression.	营业额强劲增长。	根： sifr (数字) + affaire (事务)。同源： Déchiffrer (破译), Faire (做)。\nbénéfice	n.m.	利润	réaliser des bénéfices.	实现盈利。	根： bene (好) + facere (做)。同源： Bienfait (好处/善行), Béni (受祝福的)。\nperte	n.f.	亏损	essuyer des pertes.	遭受亏损。	根： perdere (丧失)。同源： Perdre (丢失), Perdition (毁灭)。\nmarge	n.f.	利润空间/毛利	une marge bénéficiaire réduite.	利润率下降。	根： margo (边缘)。同源： Marginal (边缘的), Marger (留边)。\nrentabilité	n.f.	盈利能力	assurer la rentabilité du projet.	确保项目的盈利能力。	根： reddere (还/产生)。同源： Rente (收益), Rentier (食利者)。\nproductivité	n.f.	生产率	un gain de productivité.	生产率提高。	根： pro- + ducere (引导)。同源： Produire (生产), Déduire (扣除)。\ncompétitivité	n.f.	竞争力	la compétitivité prix.	价格竞争力。	根： cum (共同) + petere (追求)。同源： Compétiteur (竞争者)。\ninnovation	n.f.	创新	le moteur de l'innovation.	创新的引擎。	根： in- + novus (新的)。同源： Nouveau (新的), Novice (新手)。\nrecherche et développement (r&d)	n.f.	研发	investir dans la r&d.	投资研发（R&D）。	不适用单词\nbrevet	n.m.	专利	déposer un brevet.	申请专利。	根： brevis (简短)。同源： Bref (简短的), Abréger (缩短)。\nlicence	n.f.	执照/许可	acheter une licence d'exploitation.	购买经营许可。	根： licere (允许)。同源： Licite (合法的), Loisir (空闲)。\nmarché public	n.m.	政府收买/公共采购	remporter un marché public.	赢得政府采购合同。	根： mercatos + publicus (人民的)。同源： Publication (出版), Publier (公布)。\nappel d'offres	n.m.	招标	répondre à un appel d'offres.	对招标做出响应。	根： appellare (呼唤) + offerre。同源： Appeler (呼叫), Appellation (名称)。\ndevis	n.m.	报价单	demander un devis détaillé.	要求详细报价。	根： dividere (分开详述)。同源： Diviser (划分), Dividende (红利)。\nfacture	n.f.	发票	régler la facture.	结清账单。	根： facere (做/制造)。同源： Facturer (开发票), Facteur (因素)。\nsolde	n.m./n.f.	余额/打折季	le solde de mon compte est positif.	我的账户余额为正。	根： solidus (整/硬币)。同源： Solidaire (连带的), Soldat (士兵)。\nrabais	n.m.	折扣	obtenir un rabais.	获得折扣。	根： re- + abaisser (减低)。同源： Bas (矮的), Abaisser (降低)。\nristourne	n.f.	回扣/返还	une ristourne de fin d'année.	年终返利。	根： ristornare (转回)。同源： Retourner (返回), Tourner (转动)。\nremise	n.f.	减价/折扣	une remise exceptionnelle.	特别折扣。	根： remittere (交回)。同源： Remettre (重新放置), Émettre (发行)。\nvirement	n.m.	转账	effectuer un virement bancaire.	进行银行转账。	根： virer (转动)。同源： Virage (拐弯), Virée (短途游览)。\nprélèvement	n.m.	扣款	un prélèvement automatique.	自动扣款。	根： prae- + levare。同源： Levier (杠杆), Levée (堤坝/征收)。\ndébit	n.m.	支出/借方	le débit de mon compte.	我的账户支出（借方）。	根： debere (欠)。同源： Devoir (债务), Débiteur (债务人)。\ncrédit	n.m.	存入/贷方	porter une somme au crédit.	将一笔款项计入贷方。	根： credere (信任)。同源： Créance (债权), Crédibilité (信用)。\ntaux d'intérêt	n.m.	利率	la hausse des taux d'intérêt.	利率上升。	根： taxatio + inter- (中间) + esse (存在)。同源： Taux (比率)。\nassurance	n.f.	保险	une assurance responsabilité civile.	第三方责任险。	根： ad- + securus (安全)。同源： Sûr (确信的), Sécurité (安全)。\ncotisation	n.f.	保费/缴费	le montant de la cotisation.	保险费金额。	根： quota (份额)。同源： Quotité (应得份额), Quotient (商)。\nsinistre	n.m.	出险/灾害	déclarer un sinistre.	报案（申报理赔）。	根： sinister (左手/凶兆)。同源： Sinistré (灾民), Sinistrose (受灾心理)。\nindemnisation	n.f.	赔偿	une indemnisation forfaitaire.	定额赔偿。	根： in- (无) + damnum (损失)。同源： Dommage (损坏), Damner (谴责)。\nfranchise	n.f.	免赔额	la franchise est à votre charge.	免赔额部分由您承担。	根： frank (自由)。同源： Franc (坦率的/法郎), Affranchir (释放)。\nrésiliation	n.f.	解约	la résiliation d'un contrat.	合同解约。	根： resilire (弹回/取消)。同源： Résilient (有弹性的), Sursaut (惊跳)。\npréavis	n.m.	预先通知期	respecter un préavis de trois mois.	遵守三个月的预告期。	根： prae- + ad-visum (预见)。同源： Avis (通知), Vision (视觉)。\nclause	n.f.	条款	une clause de confidentialité.	保密条款。	根： claudere (关闭)。同源： Clore (结束), Conclusion (结论)。\nlitige	n.m.	纠纷	un litige commercial.	商业纠纷。	根： lis (争讼) + agere (驱动)。同源： Litigieux (有争议的)。\ncontentieux	n.m.	争端	le service du contentieux.	法务/争议部门。	根： contendere (角逐)。同源： Contention (争论), Détente (缓和)。\nmédiation	n.f.	调解	tenter une médiation.	尝试调解。	根： medius (中间)。同源： Milieu (中间/环境), Médian (中值的)。\narbitrage	n.m.	仲裁	recourir à l'arbitrage.	进行仲裁。	根： arbiter (裁判)。同源： Arbitre (裁判员), Arbitraire (任意的)。\njuridiction	n.f.	司法管辖	la juridiction compétente.	主管司法管辖区。	根： jus (法) + dicere (说)。同源： Juge (法官), Dire (说)。\nfaillite	n.f.	破产	l'entreprise a déposé le bilan pour faillite.	公司因破产申请清算。	根： fallere (倒下/欺骗)。同源： Faillir (失败), Défaillant (违约的)。\ncessation de paiement	n.f.	停止支付	être en état de cessation de paiement.	处于停止支付状态。	根： cessare (停止) + pacare (平息)。同源： Cesser (停止), Paix (和平)。\nredressement	n.m.	重整/复苏	un plan de redressement judiciaire.	司法重整计划。	根： re- + directus (正)。同源： Droit (权利/法律), Dresser (竖起)。\nliquidités	n.f.pl.	流动资金	manquer de liquidités.	缺乏流动性。	根： liquidus (流质的)。同源： Liquidation (清盘), Liquidateur (清算人)。\ntrésorerie	n.f.	现金头寸	une trésorerie saine.	财务状况稳健。	根： thesauros (宝库)。同源： Trésor (财富), Thésauriser (窖藏现金)。\ncréance	n.f.	债权	recouvrer une créance.	收回债权。	根： credere (相信)。同源： Croyance (信念)。\ndette	n.f.	债务	éponger sa dette.	抵偿债务。	根： debere (欠)。同源： Débit (借方)。\nemprunt	n.m.	借款	un emprunt obligataire.	债券借贷。	根： in- + promutuum (预借)。同源： Mutuel (相互的), Promesse (诺言)。\ncréancier	n.m.	债权人	l'accord des créanciers.	债权人的一致同意。	根： credere。同源： Crédit (信用)。\ndébiteur	n.m.	债务人	poursuivre le débiteur.	起诉债务人。	根： debitum (所欠)。同源： Dette (债务)。\ngarantie	n.f.	保证	une garantie bancaire.	银行担保。	根： weren (防御)。同源： Garant (担保人), Guérir (治愈)。\ncaution	n.f.	保证金/担保人	verser une caution.	支付保证金（押金）。	根： cautio (担保)。同源： Précaution (预防), Cautionner (担保)。\nhypothèque	n.f.	抵押	lever l'hypothèque.	注销抵押权。	根： hypo (下) + theke (放置处)。同源： Thèse (论点), Bibliothèque (图书馆)。\nnégociation	n.f.	谈判	une négociation serrée.	艰苦的谈判。	根： neg- (非) + otium (闲暇)。同源： Négoce (贸易), Oisif (闲散的)。\ncompromis	n.m.	妥协	un compromis historique.	历史性的妥协。	根： cum + promittere (共同许诺)。同源： Promesse (承诺), Mission (使命)。\nconsensus	n.m.	共识	un consensus politique.	政治共识。	根： cum + sentire (共同感受)。同源： Sentiment (情感), Consentir (同意)。\naccord	n.m.	协议	signer un accord cadre.	签署框架协议。	根： ad- + cor (心)。同源： Coeur (心脏), Concorde (和谐)。\npartenariat	n.m.	伙伴关系	un partenariat public-privé.	公私合作伙伴关系（PPP）。	根： partire (分配)。同源： Part (部分), Partage (分享)。\nstratégie	n.f.	策略	une stratégie de croissance.	增长战略。	根： stratos (军) + agein (导)。同源： Stratagème (计谋), Agir (行动)。\nvision	n.f.	愿景	une vision à long terme.	长期愿景。	根： videre (看)。同源： Voir (看), Visuel (视觉的)。\nprospective	n.f.	展望/预测学	faire de la prospective économique.	进行经济预测。	根： pro- + specere (看)。同源： Spectateur (观众), Inspecter (检查)。\ntendance	n.f.	趋势	une tendance baissière.	下跌趋势。	根： tendere (伸展)。同源： Tendre (伸出), Attention (注意)。\nfluctuation	n.f.	波动	la fluctuation des cours.	价格波动。	根： fluere (流动)。同源： Flux (流量), Fluer (流出)。\ninstabilité	n.f.	不稳定	l'instabilité des marchés.	市场动荡。	根： in- + stabilis (稳固)。同源： Stable (稳定的), Station (车站)。\nvolatilité	n.f.	挥发性/易变性	la volatilité des prix de l'énergie.	能源价格的波动性。	根： volare (飞)。同源： Voler (飞行), Volage (反复无常的)。\nrésilience	n.f.	韧性	la résilience de l'économie.	经济的韧性。	根： re- + salire (跳)。同源： Sauter (跳), Assaillir (袭击)。\nflexibilité	n.f.	灵活性	la flexibilité du travail.	劳动力灵活性。	根： flectere (弯曲)。同源： Fléchir (弯曲), Réflexe (反射)。\nprécarité	n.f.	不稳定	lutter contre la précarité.	打击不稳定用工。	根： precarius (祈求得来的)。同源： Précaire (不稳固的)。\nexclusion	n.f.	排除	l'exclusion bancaire.	银行排斥（无法获得银行服务）。	根： ex- + claudere (关闭)。同源： Exclure (排除), Clause (条款)。\npaupérisation	n.f.	贫困化	la paupérisation des retraités.	退休人员的贫困化。	根： pauper (贫穷)。同源： Pauvre (穷人), Paupérisme (贫困)。\nrichesse	n.f.	财富	la création de richesse.	创造财富。	根： riki (强大)。同源： Riche (富的), Richissime (极富有的)。\nfortune	n.f.	财产	l'impôt sur la fortune immobilière (ifi).	房产财富税（IFI）。	根： fortuna (运气)。同源： Fortuit (偶然的), Fortuné (富有的)。\npatrimoine	n.m.	资产/遗产	le patrimoine mondial de l'unesco.	联合国教科文组织世界遗产。	根： pater (父亲)。同源： Paternel (父系的), Patrie (祖国)。\nsuccession	n.f.	继承	les droits de succession.	遗产继承税。	根： sub- + cedere (跟随)。同源： Succéder (继承), Succès (成功)。\nlegs	n.m.	遗产/遗赠	faire un legs à une association.	向协会进行遗产捐赠。	根： laxare (松开)。同源： Laisser (留下), Relais (接替)。\ndonation	n.f.	赠与	une donation de son vivant.	生前赠与。	根： donare (给)。同源： Donner (给予), Pardon (原谅)。\nfiscalité	n.f.	财政/税制	la fiscalité successorale.	遗产继承税制。	根： fiscus (钱篮)。同源： Fiscaliser (征税), Fiscalité (税制)。\nprélèvement	n.m.	征收	un prélèvement forfaitaire unique (pfu).	单一固定税（PFU/利得税）。	根： prae- + levare。同源： Levier (杠杆), Levée (堤坝)。\nassiette	n.f.	税基	l'assiette de l'impôt.	征税基数。	根： assidere (坐旁/估价)。同源： Assis (坐着的), Assises (巡回法庭)。\ntaux	n.m.	率	le taux d'imposition marginal.	边际税率。	根： taxatio (估评估)。同源： Taxation (课税), Taxer (收费)。\ntranche	n.f.	档次	la tranche supérieure de l'impôt.	最高税率档位。	根： trenchier (切)。同源： Trancher (裁断), Retrancher (扣除)。\nquotient familial	n.m.	家庭系数 (报税用)	le calcul du quotient familial.	家庭商数计算（法国个税计税法）。	根： quot + familia (家)。同源： Quotité (份额), Familier (熟悉的)。\ndéduction	n.f.	扣除	une déduction fiscale pour travaux.	工程抵税减免。	根： de- + ducere (引导离)。同源： Déduire (推论), Conduit (管道)。\nréduction	n.f.	减免	une réduction d'impôt.	税收减免。	根： re- + ducere (引导回)。同源： Réduire (缩小), Réducteur (还原剂)。\ncrédit d'impôt	n.m.	税收抵免	le crédit d'impôt pour la transition énergétique.	能源转型抵税优惠。	根： credere + imponere。同源： Créditeur (债权人), Imposant (壮观的)。\ndéclaration	n.f.	申报	faire sa déclaration de revenus.	进行收入申报。	根： de- + clarare (使清晰)。同源： Clair (明亮的), Clarifier (澄清)。\navis d'imposition	n.m.	纳税通知书	recevoir son avis d'imposition.	收到纳税通知书。	根： visum + imponere。同源： Visionner (观看), Imposition (课税)。\nredressement	n.m.	补税/重整	un redressement fiscal.	税务补征。	根： re- + directus。同源： Rectitude (公正), Recto (正面)。\ncontrôle	n.m.	检查/审计	subir un contrôle fiscal.	接受税务稽查。	根： contra + rotulus (卷轴)。同源： Rôle (任务), Enrôler (征募)。\namende	n.f.	罚款	payer une amende forfaitaire.	支付定额罚款。	根： emendare (改正)。同源： Améliorer (改善), Amendement (修正案)。\npénalité	n.f.	违约金/罚金	des pénalités de retard.	滞纳金。	根： poena (惩罚)。同源： Peine (痛苦), Punition (罚款)。\ncontestation	n.f.	争议	une contestation de facture.	对账单异议。	根： con- + testari (作证)。同源： Témoigner (作证), Attester (证实)。\nrecours	n.m.	申诉	un recours gracieux.	行政申诉。	根： re- + currere (跑)。同源： Secours (救援), Parcourir (遍历)。\nconciliation	n.f.	调解	un conciliateur de justice.	司法调解员。	根： conciliare (联合)。同源： Conciliant (和蔼的), Réconciliation (和解)。\nmédiateur	n.m.	调解员	saisir le médiateur de l'énergie.	找能源调解员投诉。	根： medius (中间)。同源： Méditerranée (地中海), Médian (中值的)。");
+	
+
+
+	document.getElementById("testarea").innerHTML = window.screen.width;
+</script>
+
+
+
+<deepl-input-controller><template shadowrootmode="open"><link rel="stylesheet" href="chrome-extension://cofdbpoegempjloogbagkncekinflcnj/build/content.css"><div dir="ltr"><div class="dl-input-translation-container svelte-95aucy"><div></div></div></div></template></deepl-input-controller></body></html>
